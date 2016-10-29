@@ -21,10 +21,10 @@ endif
 CFLAGS = -I$(RM_INCLUDE_DIR) -Wall -g -fPIC -lc -lm -Og -std=gnu99  
 CC=gcc
 
-all: module.so 
+all: timeseries.so
 
-module.so: module.o
-	$(LD) -o $@ module.o $(SHOBJ_LDFLAGS) $(LIBS) -L$(RMUTIL_LIBDIR) -lrmutil -L../cJSON -lcjson -lc 
+timeseries.so: timeseries.o timeseries_test.o
+	$(LD) -o $@ $^ $(SHOBJ_LDFLAGS) $(LIBS) -L$(RMUTIL_LIBDIR) -lrmutil -L../cJSON -lcjson -lc
 
 clean:
 	rm -rf *.xo *.so *.o

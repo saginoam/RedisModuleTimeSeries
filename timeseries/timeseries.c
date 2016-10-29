@@ -1,63 +1,12 @@
-#include <sys/time.h>
-#include <time.h>
-#include "../redismodule.h"
-#include "../rmutil/util.h"
-#include "../rmutil/strings.h"
-#include "../rmutil/test_util.h"
-#include "../cJSON/cJSON.h"
+#include "timeseries.h"
 
 // TODO add expiration
 // TODO add interval duration. i.e '10 minute'
 
-#define SECOND "second"
-#define MINUTE "minute"
-#define HOUR "hour"
-#define DAY "day"
-#define WEEK "week"
-#define MONTH "month"
-#define YEAR "year"
-
 char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, WEEK, MONTH, YEAR};
-
-#define SUM "sum"
-#define AVG "avg"
 
 char *validAggs[] = {SUM, AVG};
 
-#define VALIDATE_STRING_TYPE(k) \
-  if (k->type != cJSON_String) \
-    return "Invalid json: key is not a string"; \
-  if (!strlen(k->valuestring)) \
-    return "Invalid json: empty string is not allowed";
-
-#define VALIDATE_KEY(j, key) \
-  cJSON_GetObjectItem(j, #key); \
-  if (!key) \
-    return "Invalid json: missing " #key;
-
-#define VALIDATE(j, key, Type) \
-  VALIDATE_KEY(j, key) \
-  if (key->type != Type) \
-    return "Invalid json: " #key  "is not " #Type;
-
-#define VALIDATE_STRING(j, key) \
-  VALIDATE_KEY(j, key) \
-  VALIDATE_STRING_TYPE(key)
-
-#define VALIDATE_ARRAY(j, key) \
-  VALIDATE(j, key, cJSON_Array) \
-  sz = cJSON_GetArraySize(key); \
-  if (!sz) \
-    return "Invalid json: " #key " is empty";
-
-#define VALIDATE_ENUM(js, key, validValues, msg) \
-  VALIDATE(js, key, cJSON_String) \
-  valid = 0; \
-  esz = sizeof(validValues) / sizeof(validValues[0]); \
-  for (j=0; !valid && j < esz; j++) \
-    valid = strcasecmp( validValues[j], key->valuestring) == 0; \
-  if (!valid) \
-    return "Invalid json: " #key " is not one of: " msg;
 
 /**
  * TS.CONF <name> <config json>
@@ -116,13 +65,6 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
   // All is good
   return NULL;
 }
-
-
-#define RMUTIL_ASSERT_NONULL(r, entry) RMUTIL_ASSERT_NOERROR(r) \
-    else if (RedisModule_CallReplyType(r) == REDISMODULE_REPLY_NULL) { \
-        char msg[1000] = "No such entry: "; \
-        return RedisModule_ReplyWithError(ctx, strcat(msg, entry)); \
-    }
 
 long interval_timestamp(char *interval) {
   time_t t = time(NULL);
@@ -259,157 +201,6 @@ int TSConf(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
   RedisModule_ReplyWithSimpleString(ctx, "OK");
   //RedisModule_ReplyWithCallReply(ctx, srep);
-  return REDISMODULE_OK;
-}
-
-#define TEST_CONF \
-  "{ \
-    \"keep_original\": false, \
-    \"key_fields\": [ \"f1\", \"f2\" ], \
-    \"ts_fields\": [ \
-      { \
-       \"field\":\"s1\", \
-       \"aggregation\": \"sum\" \
-      }, \
-      { \
-       \"field\":\"s2\", \
-       \"aggregation\": \"sum\" \
-      }, \
-      { \
-       \"field\":\"a1\", \
-       \"aggregation\": \"avg\" \
-      } \
-     ], \
-    \"interval\": \"DAY\" \
-   }"
-
-#define TEST_DATA \
-  "{ \
-    \"f1\": \"fff1\", \
-    \"f2\": \"fff2\", \
-    \"s1\": 10.5, \
-    \"s2\": 111, \
-    \"a1\": 10 \
-   }"
-
-#define TEST_DATA2 \
-  "{ \
-    \"f1\": \"fff1\", \
-    \"f2\": \"fff2\", \
-    \"s1\": 2.5, \
-    \"s2\": 111, \
-    \"a1\": 20 \
-   }"
-
-//#define RMUtil_AssertMSG(expr, msg) if (!(expr)) { fprintf (stderr, "Assertion '%s' Failed [%s]\n", __STRING(expr), msg); return REDISMODULE_ERR; }
-
-// TODO Verify all keys exist
-// TODO Verify all fields exist
-// TODO Verify single entry sum
-// TODO Verify single entry avg
-// TODO Verify multiple entry sum
-// TODO Verify multiple entry avg
-// TODO Verify keep original
-// TODO Verify timestamp in data json
-
-int testTS(RedisModuleCtx *ctx) {
-  long count, timestamp = interval_timestamp("day");
-  double val;
-  char *eptr, timestamp_key[100], count_key[100], str[] = TEST_CONF;
-
-  sprintf(timestamp_key, "%li", timestamp);
-  sprintf(count_key, "%s:count", timestamp_key);
-
-  // Verify invalid json in conf
-  RedisModuleCallReply *r = RedisModule_Call(ctx, "ts.conf", "cc", "testts", "this is not a json string");
-  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
-  RMUtil_Assert(!strcmp(RedisModule_CallReplyStringPtr(r, NULL), "Invalid json\r\n"));
-
-  // Remove old data (previous tests)
-  r = RedisModule_Call(ctx, "DEL", "c", "ts.conf");
-  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
-  r = RedisModule_Call(ctx, "DEL", "c", "ts.agg:fff1:fff2:s2:sum");
-  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
-  r = RedisModule_Call(ctx, "DEL", "c", "ts.agg:fff1:fff2:a1:avg");
-  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
-  r = RedisModule_Call(ctx, "DEL", "c", "ts.agg:fff1:fff2:s1:sum");
-  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
-
-  // Validate aggregation type
-  strncpy (strstr (str,"avg"),"xxx", 3);
-  r = RedisModule_Call(ctx, "ts.conf", "cc", "testts", str);
-  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
-  RMUtil_Assert(!strcmp(RedisModule_CallReplyStringPtr(r, NULL), "Invalid json: aggregation is not one of: sum, avg\r\n"));
-  strncpy (strstr (str,"xxx"),"avg", 3);
-
-  // Validate interval values
-  strncpy (strstr (str,"DAY"),"xxx", 3);
-  r = RedisModule_Call(ctx, "ts.conf", "cc", "testts", str);
-  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
-  RMUtil_Assert(!strcmp(RedisModule_CallReplyStringPtr(r, NULL),
-    "Invalid json: interval is not one of: second, minute, hour, day, week, month, year\r\n"));
-  strncpy (strstr (str,"xxx"),"DAY", 3);
-
-  // Validate add before conf fails
-  r = RedisModule_Call(ctx, "ts.add", "cc", "testts", TEST_DATA);
-  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
-
-  // Add conf
-  r = RedisModule_Call(ctx, "ts.conf", "cc", "testts", TEST_CONF);
-  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
-
-  // 1st Add succeed
-  r = RedisModule_Call(ctx, "ts.add", "cc", "testts", TEST_DATA);
-  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
-
-  // Verify count is 1
-  r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", count_key);
-  count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
-  RMUtil_Assert(count == 1);
-
-  r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:a1:avg", count_key);
-  count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
-  RMUtil_Assert(count == 1);
-
-  // Verify value
-  r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", timestamp_key);
-  val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
-  RMUtil_Assert(val == 10.5);
-
-  r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:a1:avg", timestamp_key);
-  val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
-  RMUtil_Assert(val == 10);
-
-  // 2nd Add
-  r = RedisModule_Call(ctx, "ts.add", "cc", "testts", TEST_DATA2);
-  RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
-
-  // Verify count is 2
-  r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", count_key);
-  count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
-  RMUtil_Assert(count == 2);
-
-  // Verify sum value is aggregated
-  r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", timestamp_key);
-  val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
-  RMUtil_Assert(val == 13);
-
-  r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:a1:avg", timestamp_key);
-  val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
-  RMUtil_Assert(val == 15);
-
-  return 0;
-}
-
-// Unit test entry point for the timeseries module
-int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-  RedisModule_AutoMemory(ctx);
-
-  RMUtil_Test(testTS);
-  // Run the test twice. Make sure no leftovers in either ts or test.
-  RMUtil_Test(testTS);
-
-  RedisModule_ReplyWithSimpleString(ctx, "PASS");
   return REDISMODULE_OK;
 }
 
