@@ -401,7 +401,7 @@ int testTS(RedisModuleCtx *ctx) {
   return 0;
 }
 
-// Unit test entry point for the module
+// Unit test entry point for the timeseries module
 int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
 
@@ -414,11 +414,11 @@ int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 }
 
 int RedisModule_OnLoad(RedisModuleCtx *ctx) {
-  // Register the module itself
+  // Register the timeseries module itself
   if (RedisModule_Init(ctx, "ts", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
 
-  // Register module api
+  // Register timeseries api
   RMUtil_RegisterWriteCmd(ctx, "ts.conf", TSConf);
   RMUtil_RegisterWriteCmd(ctx, "ts.add", TSAdd);
 
