@@ -33,7 +33,7 @@ STLIBNAME = $(LIBNAME).a
 
 .PHONY: all clean install
 
-all: $(DYLIBNAME) $(STLIBNAME) $(TESTS)
+all: $(STLIBNAME) $(TESTS)
 
 $(DYLIBNAME): $(OBJ)
 		$(DYLIBCMD) $< $(LDFLAGS)
