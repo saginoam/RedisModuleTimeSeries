@@ -2,7 +2,8 @@
 
 // TODO add expiration
 // TODO add interval duration. i.e '10 minute'
-
+// TODO Implement keep original
+// TODO interval should be per field, not global
 char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, WEEK, MONTH, YEAR};
 
 char *validAggs[] = {SUM, AVG};
@@ -126,8 +127,8 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     cJSON *ts_field = cJSON_GetArrayItem(ts_fields, i);
     cJSON *field = cJSON_GetObjectItem(ts_field, "field");
     cJSON *aggregation = cJSON_GetObjectItem(ts_field, "aggregation");
-    cJSON *datafield = cJSON_GetObjectItem(data, field->valuestring);
     sprintf(agg_key, "%s%s:%s", key_prefix, field->valuestring, aggregation->valuestring);
+    cJSON *datafield = cJSON_GetObjectItem(data, field->valuestring);
 
     // TODO can redis accept double?
     char value[100];
