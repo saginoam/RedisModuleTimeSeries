@@ -40,7 +40,7 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
     VALIDATE_STRING_TYPE(k);
     if (data) {
       cJSON *tsfield = cJSON_GetObjectItem(data, k->valuestring);
-      if (!tsfield) \
+      if (!tsfield)
         return "Invalid data: missing field";
       VALIDATE_STRING_TYPE(tsfield);
     }
