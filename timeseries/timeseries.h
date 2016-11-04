@@ -1,8 +1,9 @@
 #ifndef _TIMESERIES_H_
 #define _TIMESERIES_H_
 
-#include <sys/time.h>
+#define _XOPEN_SOURCE // For the use of strptime
 #include <time.h>
+
 #include "../redismodule.h"
 #include "../rmutil/util.h"
 #include "../rmutil/strings.h"
@@ -54,7 +55,7 @@
   valid = 0; \
   esz = sizeof(validValues) / sizeof(validValues[0]); \
   for (j=0; !valid && j < esz; j++) \
-    valid = strcasecmp( validValues[j], key->valuestring) == 0; \
+    valid = strcmp( validValues[j], key->valuestring) == 0; \
   if (!valid) \
     return "Invalid json: " #key " is not one of: " msg;
 
@@ -64,7 +65,7 @@
         return RedisModule_ReplyWithError(ctx, strcat(msg, entry)); \
     }
 
-long interval_timestamp(char *interval);
+time_t interval_timestamp(char *interval, const char *timestamp, const char *format);
 
 // Test function
 int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);

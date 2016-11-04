@@ -67,17 +67,24 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
   return NULL;
 }
 
-long interval_timestamp(char *interval) {
-  time_t t = time(NULL);
+time_t interval_timestamp(char *interval, const char *timestamp, const char *format) {
   struct tm st;
-  gmtime_r(&t, &st);
+  if (timestamp) {
+    // TODO Handle failure
+    memset(&st, 0, sizeof(struct tm));
+    strptime(timestamp, format, &st);
+  }
+  else {
+    time_t t = time(NULL);
+    gmtime_r(&t, &st);
+  }
 
   // TODO do we support week?
-  st.tm_sec = 0; if (!strcasecmp(interval, SECOND)) return mktime(&st);
-  st.tm_min = 0; if (!strcasecmp(interval, MINUTE)) return mktime(&st);
-  st.tm_hour = 0; if (!strcasecmp(interval, HOUR)) return mktime(&st);
-  st.tm_mday = 0; if (!strcasecmp(interval, DAY)) return mktime(&st);
-  st.tm_mon = 0;
+  st.tm_sec =  0; if (!strcmp(interval, SECOND)) return mktime(&st);
+  st.tm_min =  0; if (!strcmp(interval, MINUTE)) return mktime(&st);
+  st.tm_hour = 0; if (!strcmp(interval, HOUR))   return mktime(&st);
+  st.tm_mday = 0; if (!strcmp(interval, DAY))    return mktime(&st);
+  st.tm_mon =  0;
   return mktime(&st);
 }
 
@@ -109,7 +116,7 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   // Create timestamp now (Use a single timestamp for all entries, not to accidently use different entries in case
   // during the calculation the time has changed)
   // TODO allow adding timestamp instead of 'now'
-  long timestamp = interval_timestamp(cJSON_GetObjectItem(conf, "interval")->valuestring);
+  long timestamp = interval_timestamp(cJSON_GetObjectItem(conf, "interval")->valuestring, NULL, NULL);
 
   char key_prefix[1000] = "ts.agg:";
   cJSON *key_fields = cJSON_GetObjectItem(conf, "key_fields");
@@ -142,10 +149,10 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     //RedisModuleCallReply *r = RedisModule_Call(ctx, "HSET", "clc", agg_key, timestamp, haRedisModule_CallReplyType(r)ckd);
 
     RedisModuleCallReply *r;
-    if (!strcasecmp(aggregation->valuestring, "sum")) {
+    if (!strcmp(aggregation->valuestring, SUM)) {
       r = RedisModule_Call(ctx, "HINCRBYFLOAT", "ccc", agg_key, timestamp_key, value);
       RMUTIL_ASSERT_NOERROR(r);
-    } else if (!strcasecmp(aggregation->valuestring, "avg")) {
+    } else if (!strcmp(aggregation->valuestring, AVG)) {
       long count = 0;
       double avg = 0, newval;
       char *eptr;
@@ -192,8 +199,11 @@ int TSConf(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   if (!(json=cJSON_Parse(conf)))
     return RedisModule_ReplyWithError(ctx, "Invalid json");
 
-  if ((jsonErr = ValidateTS(json, NULL)))
+  if ((jsonErr = ValidateTS(json, NULL))) {
+    // TODO How do I valgrind my module? oh, just valgrind it?
+    cJSON_Delete(json);
     return RedisModule_ReplyWithError(ctx, jsonErr);
+  }
 
   RedisModuleCallReply *srep = RedisModule_Call(ctx, "HSET", "ccc", "ts.conf", name, conf);
   // Free the json before assert, otherwise invalid input will cause memory leak of the json
