@@ -24,6 +24,10 @@
 #define SUM "sum"
 #define AVG "avg"
 
+#define RMCALL(reply, call) \
+  RedisModule_FreeCallReply(reply); \
+  reply = call
+
 #define VALIDATE_STRING_TYPE(k) \
   if (k->type != cJSON_String) \
     return "Invalid json: key is not a string"; \
@@ -59,9 +63,10 @@
   if (!valid) \
     return "Invalid json: " #key " is not one of: " msg;
 
-#define RMUTIL_ASSERT_NONULL(r, entry) RMUTIL_ASSERT_NOERROR(r) \
+#define RMUTIL_ASSERT_NONULL(r, entry, cleanup) RMUTIL_ASSERT_NOERROR(r, cleanup) \
     else if (RedisModule_CallReplyType(r) == REDISMODULE_REPLY_NULL) { \
         char msg[1000] = "No such entry: "; \
+        cleanup(); \
         return RedisModule_ReplyWithError(ctx, strcat(msg, entry)); \
     }
 

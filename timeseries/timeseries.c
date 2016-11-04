@@ -8,6 +8,12 @@ char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, WEEK, MONTH, YEAR};
 
 char *validAggs[] = {SUM, AVG};
 
+void FreeCallReply(RedisModuleCallReply **rp) {
+  if (*rp) {
+    RedisModule_FreeCallReply(*rp);
+    *rp = NULL;
+  }
+}
 
 /**
  * TS.CONF <name> <config json>
@@ -89,6 +95,15 @@ time_t interval_timestamp(char *interval, const char *timestamp, const char *for
 }
 
 int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  cJSON *conf = NULL;
+  cJSON *data = NULL;
+  RedisModuleCallReply *confRep = NULL;
+
+  void cleanup(void) {
+    cJSON_Delete(data);
+    cJSON_Delete(conf);
+    RedisModule_FreeCallReply(confRep);
+  }
 
   if (argc != 3) {
     return RedisModule_WrongArity(ctx);
@@ -96,28 +111,25 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
 
   // Time series entry name
-  RedisModuleCallReply *confRep = RedisModule_Call(ctx, "HGET", "cs", "ts.conf", argv[1]);
-  RMUTIL_ASSERT_NONULL(confRep, RedisModule_StringPtrLen(argv[1], NULL));
+  confRep = RedisModule_Call(ctx, "HGET", "cs", "ts.conf", argv[1]);
+  RMUTIL_ASSERT_NONULL(confRep, RedisModule_StringPtrLen(argv[1], NULL), cleanup);
 
   // Time series entry conf previously stored for 'name'
-  cJSON *conf;
+
   if (!(conf=cJSON_Parse(RedisModule_CallReplyStringPtr(confRep, NULL)))) {
-    RedisModule_FreeCallReply(confRep);
+    cleanup();
     return RedisModule_ReplyWithError(ctx, "Something is wrong. Failed to parse ts conf");
   }
 
   // Time series entry data
-  cJSON *data;
   if (!(data=cJSON_Parse(RedisModule_StringPtrLen(argv[2], NULL)))) {
-    RedisModule_FreeCallReply(confRep);
-    cJSON_Delete(data);
+    cleanup();
     return RedisModule_ReplyWithError(ctx, "Invalid json");
   }
 
   const char *jsonErr;
   if ((jsonErr = ValidateTS(conf, data))) {
-    RedisModule_FreeCallReply(confRep);
-    cJSON_Delete(data);
+    cleanup();
     return RedisModule_ReplyWithError(ctx, jsonErr);
   }
 
@@ -152,15 +164,12 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     sprintf(value, "%lf", datafield->valuedouble);
     sprintf(timestamp_key, "%li", timestamp);
     sprintf(count_key, "%s:count", timestamp_key);
-    //printf("=============\n%s\n%s\n%s\n", agg_key, timestamp_key, value);
-    //RedisModuleCallReply *r = RedisModule_Call(ctx, "HSET", "ccl", agg_key, timestamp_key, (long long)(datafield->valueint));
-    //RedisModuleCallReply *r = RedisModule_Call(ctx, "HSET", "clc", agg_key, timestamp, haRedisModule_CallReplyType(r)ckd);
 
     RedisModuleCallReply *r = NULL;
     if (!strcmp(aggregation->valuestring, SUM)) {
       r = RedisModule_Call(ctx, "HINCRBYFLOAT", "ccc", agg_key, timestamp_key, value);
       // TODO on error cJSON_Delete(data) and RedisModule_FreeCallReply(confRep);
-      RMUTIL_ASSERT_NOERROR(r);
+      RMUTIL_ASSERT_NOERROR(r, cleanup);
     } else if (!strcmp(aggregation->valuestring, AVG)) {
       long count = 0;
       double avg = 0, newval;
@@ -172,38 +181,30 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
 
         // Current average
-        RedisModule_FreeCallReply(r);
-        r = RedisModule_Call(ctx, "HGET", "cc", agg_key, timestamp_key);
+        RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", agg_key, timestamp_key));
         avg = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
       }
 
       // new average
       newval =(avg*count + datafield->valuedouble) / (count+1);
       sprintf(value, "%lf", newval);
-      RedisModule_FreeCallReply(r);
-      r = RedisModule_Call(ctx, "HSET", "ccc", agg_key, timestamp_key, value);
-      // TODO on error cJSON_Delete(data);
-      RMUTIL_ASSERT_NOERROR(r);
+      RMCALL(r, RedisModule_Call(ctx, "HSET", "ccc", agg_key, timestamp_key, value));
+      RMUTIL_ASSERT_NOERROR(r, cleanup);
     }
 
-    RedisModule_FreeCallReply(r);
-    r = RedisModule_Call(ctx, "HINCRBY", "ccl", agg_key, count_key, (long long)1);
-    // TODO on error cJSON_Delete(data) and RedisModule_FreeCallReply(r);;
-    RMUTIL_ASSERT_NOERROR(r);
-    RedisModule_FreeCallReply(r);
-
+    RMCALL(r, RedisModule_Call(ctx, "HINCRBY", "ccl", agg_key, count_key, (long long)1));
+    RMUTIL_ASSERT_NOERROR(r, cleanup);
+    FreeCallReply(&r);
   }
 
-  cJSON_Delete(data);
-  cJSON_Delete(conf);
-  RedisModule_FreeCallReply(confRep);
+  cleanup();
   RedisModule_ReplyWithSimpleString(ctx, "OK");
   //RedisModule_ReplyWithSimpleString(ctx, "All is good");
   return REDISMODULE_OK;
 }
 
 int TSConf(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-
+  void cleanup () {}
   if (argc != 3) {
     return RedisModule_WrongArity(ctx);
   }
@@ -225,7 +226,7 @@ int TSConf(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModuleCallReply *srep = RedisModule_Call(ctx, "HSET", "ccc", "ts.conf", name, conf);
   // Free the json before assert, otherwise invalid input will cause memory leak of the json
   cJSON_Delete(json);
-  RMUTIL_ASSERT_NOERROR(srep);
+  RMUTIL_ASSERT_NOERROR(srep, cleanup);
 
   RedisModule_ReplyWithSimpleString(ctx, "OK");
   return REDISMODULE_OK;

@@ -5,11 +5,13 @@
 #include <stdarg.h>
 
 /// make sure the response is not NULL or an error, and if it is sends the error to the client and exit the current function
-#define  RMUTIL_ASSERT_NOERROR(r) \
+#define  RMUTIL_ASSERT_NOERROR(r, cleanup) \
     if (r == NULL) { \
+        cleanup(); \
         return RedisModule_ReplyWithError(ctx,"ERR reply is NULL"); \
     } else if (RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR) { \
         RedisModule_ReplyWithCallReply(ctx,r); \
+        cleanup(); \
         return REDISMODULE_ERR; \
     }
 
