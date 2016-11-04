@@ -62,14 +62,19 @@ int testTS(RedisModuleCtx *ctx) {
   RMUtil_Assert(!strcmp(RedisModule_CallReplyStringPtr(r, NULL), "Invalid json\r\n"));
 
   // Remove old data (previous tests)
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "DEL", "c", "ts.conf");
   RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "DEL", "c", "ts.agg:fff1:fff2:s2:sum");
   RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "DEL", "c", "ts.agg:fff1:fff2:a1:avg");
   RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "DEL", "c", "ts.agg:fff1:fff2:s1:sum");
   RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
+  RedisModule_FreeCallReply(r);
 
   // Validate aggregation type
   strncpy (strstr (str,"avg"),"xxx", 3);
@@ -80,6 +85,7 @@ int testTS(RedisModuleCtx *ctx) {
 
   // Validate interval values
   strncpy (strstr (str,"day"),"xxx", 3);
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "ts.conf", "cc", "testts", str);
   RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
   RMUtil_Assert(!strcmp(RedisModule_CallReplyStringPtr(r, NULL),
@@ -87,53 +93,65 @@ int testTS(RedisModuleCtx *ctx) {
   strncpy (strstr (str,"xxx"),"day", 3);
 
   // Validate add before conf fails
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "ts.add", "cc", "testts", TEST_DATA);
   RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
 
   // Add conf
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "ts.conf", "cc", "testts", TEST_CONF);
   RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
 
   // 1st Add succeed
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "ts.add", "cc", "testts", TEST_DATA);
   RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
 
   // Verify count is 1
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", count_key);
   count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
   RMUtil_Assert(count == 1);
 
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:a1:avg", count_key);
   count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
   RMUtil_Assert(count == 1);
 
   // Verify value
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", timestamp_key);
   val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
   RMUtil_Assert(val == 10.5);
 
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:a1:avg", timestamp_key);
   val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
   RMUtil_Assert(val == 10);
 
   // 2nd Add
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "ts.add", "cc", "testts", TEST_DATA2);
   RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
 
   // Verify count is 2
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", count_key);
   count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
   RMUtil_Assert(count == 2);
 
   // Verify sum value is aggregated
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", timestamp_key);
   val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
   RMUtil_Assert(val == 13);
 
+  RedisModule_FreeCallReply(r);
   r = RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:a1:avg", timestamp_key);
   val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
   RMUtil_Assert(val == 15);
 
+  RedisModule_FreeCallReply(r);
   return 0;
 }
 

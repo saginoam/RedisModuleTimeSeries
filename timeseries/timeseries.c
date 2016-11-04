@@ -101,17 +101,25 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
   // Time series entry conf previously stored for 'name'
   cJSON *conf;
-  if (!(conf=cJSON_Parse(RedisModule_CallReplyStringPtr(confRep, NULL))))
+  if (!(conf=cJSON_Parse(RedisModule_CallReplyStringPtr(confRep, NULL)))) {
+    RedisModule_FreeCallReply(confRep);
     return RedisModule_ReplyWithError(ctx, "Something is wrong. Failed to parse ts conf");
+  }
 
   // Time series entry data
   cJSON *data;
-  if (!(data=cJSON_Parse(RedisModule_StringPtrLen(argv[2], NULL))))
+  if (!(data=cJSON_Parse(RedisModule_StringPtrLen(argv[2], NULL)))) {
+    RedisModule_FreeCallReply(confRep);
+    cJSON_Delete(data);
     return RedisModule_ReplyWithError(ctx, "Invalid json");
+  }
 
   const char *jsonErr;
-  if ((jsonErr = ValidateTS(conf, data)))
+  if ((jsonErr = ValidateTS(conf, data))) {
+    RedisModule_FreeCallReply(confRep);
+    cJSON_Delete(data);
     return RedisModule_ReplyWithError(ctx, jsonErr);
+  }
 
   // Create timestamp now (Use a single timestamp for all entries, not to accidently use different entries in case
   // during the calculation the time has changed)
@@ -148,9 +156,10 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     //RedisModuleCallReply *r = RedisModule_Call(ctx, "HSET", "ccl", agg_key, timestamp_key, (long long)(datafield->valueint));
     //RedisModuleCallReply *r = RedisModule_Call(ctx, "HSET", "clc", agg_key, timestamp, haRedisModule_CallReplyType(r)ckd);
 
-    RedisModuleCallReply *r;
+    RedisModuleCallReply *r = NULL;
     if (!strcmp(aggregation->valuestring, SUM)) {
       r = RedisModule_Call(ctx, "HINCRBYFLOAT", "ccc", agg_key, timestamp_key, value);
+      // TODO on error cJSON_Delete(data) and RedisModule_FreeCallReply(confRep);
       RMUTIL_ASSERT_NOERROR(r);
     } else if (!strcmp(aggregation->valuestring, AVG)) {
       long count = 0;
@@ -163,6 +172,7 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
 
         // Current average
+        RedisModule_FreeCallReply(r);
         r = RedisModule_Call(ctx, "HGET", "cc", agg_key, timestamp_key);
         avg = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
       }
@@ -170,15 +180,23 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
       // new average
       newval =(avg*count + datafield->valuedouble) / (count+1);
       sprintf(value, "%lf", newval);
+      RedisModule_FreeCallReply(r);
       r = RedisModule_Call(ctx, "HSET", "ccc", agg_key, timestamp_key, value);
+      // TODO on error cJSON_Delete(data);
       RMUTIL_ASSERT_NOERROR(r);
     }
 
+    RedisModule_FreeCallReply(r);
     r = RedisModule_Call(ctx, "HINCRBY", "ccl", agg_key, count_key, (long long)1);
+    // TODO on error cJSON_Delete(data) and RedisModule_FreeCallReply(r);;
     RMUTIL_ASSERT_NOERROR(r);
+    RedisModule_FreeCallReply(r);
 
   }
 
+  cJSON_Delete(data);
+  cJSON_Delete(conf);
+  RedisModule_FreeCallReply(confRep);
   RedisModule_ReplyWithSimpleString(ctx, "OK");
   //RedisModule_ReplyWithSimpleString(ctx, "All is good");
   return REDISMODULE_OK;
@@ -200,7 +218,6 @@ int TSConf(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     return RedisModule_ReplyWithError(ctx, "Invalid json");
 
   if ((jsonErr = ValidateTS(json, NULL))) {
-    // TODO How do I valgrind my module? oh, just valgrind it?
     cJSON_Delete(json);
     return RedisModule_ReplyWithError(ctx, jsonErr);
   }
@@ -211,7 +228,6 @@ int TSConf(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RMUTIL_ASSERT_NOERROR(srep);
 
   RedisModule_ReplyWithSimpleString(ctx, "OK");
-  //RedisModule_ReplyWithCallReply(ctx, srep);
   return REDISMODULE_OK;
 }
 
