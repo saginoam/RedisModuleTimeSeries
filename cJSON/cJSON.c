@@ -836,6 +836,15 @@ char *cJSON_Print(const cJSON *item)
     return print_value(item, 0, 1, 0);
 }
 
+char cJSON_Print_static_buf[100000];
+char *cJSON_Print_static(const cJSON *item)
+{
+    char *tmp = cJSON_Print(item);
+    strncpy(cJSON_Print_static_buf, tmp, 99999);
+    free(tmp);
+    return cJSON_Print_static_buf;
+}
+
 char *cJSON_PrintUnformatted(const cJSON *item)
 {
     return print_value(item, 0, 0, 0);
