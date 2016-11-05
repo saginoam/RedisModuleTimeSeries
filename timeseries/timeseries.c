@@ -1,16 +1,22 @@
 #include "timeseries.h"
 
-// TODO Update readme with examples
-// TODO Update readme with elasticsearch compare
-// TODO Ask dvir about: memory leak
-// TODO Ask dvir about: editing redis module sdk
-// TODO Ask dvir using int/float as has key in api
+// TODO README:
+//   Examples
+//   Elasticsearch compare
+// TODO Features:
+//   Expiration
+//   interval duration. i.e '10 minute'
+//   keep original
+//   interval should be per field, not global
+// TODO Redis questions:
+//   memory leak
+//   editing redis module sdk
+//   using int/float as has key in api
+// TODO Testing:
+//   Verify all keys exist
+//   Verify all fields exist
+//   Verify keep original
 
-
-// TODO add expiration
-// TODO add interval duration. i.e '10 minute'
-// TODO Implement keep original
-// TODO interval should be per field, not global
 char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, MONTH, YEAR};
 
 char *validAggs[] = {SUM, AVG};
@@ -170,7 +176,6 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     sprintf(agg_key, "%s%s:%s", key_prefix, field->valuestring, aggregation->valuestring);
     cJSON *datafield = cJSON_GetObjectItem(data, field->valuestring);
 
-    // TODO can redis accept double?
     char value[100];
     char timestamp_key[100];
     char count_key[100];

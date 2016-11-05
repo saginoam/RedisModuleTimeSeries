@@ -1,10 +1,5 @@
 #include "timeseries.h"
 
-// TODO Verify all keys exist
-// TODO Verify all fields exist
-// TODO Verify keep original
-// TODO Verify timestamp in data json
-
 char *fmt = "%Y:%m:%d %H:%M:%S";
 
 cJSON *ts_object(char *field, char *agg) {
