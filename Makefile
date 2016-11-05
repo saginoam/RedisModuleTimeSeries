@@ -1,3 +1,3 @@
 all:
-	make -C cJSON/ && make -C rmutil/ && make -C timeseries/
+	make -C cJSON/ clean all && make -C rmutil/ clean all && make -C timeseries/ clean all
 

@@ -12,6 +12,8 @@
 //   memory leak
 //   editing redis module sdk
 //   using int/float as has key in api
+//   redis-cli support for multi line
+//   redis-cli support unescaped strings. i.e '{ "field": "val" }' instead of '{ \"field\": \"val\" }'
 // TODO Testing:
 //   Verify all keys exist
 //   Verify all fields exist
