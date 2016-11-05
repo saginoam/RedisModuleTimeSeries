@@ -1,5 +1,14 @@
 #include "timeseries.h"
 
+// TODO Test using cjson
+// TODO add timestamp and format to json
+// TODO Update readme with examples
+// TODO Update readme with elasticsearch compare
+// TODO Ask dvir about: memory leak
+// TODO Ask dvir about: editing redis module sdk
+// TODO Ask dvir using int/float as has key in api
+
+
 // TODO add expiration
 // TODO add interval duration. i.e '10 minute'
 // TODO Implement keep original
@@ -168,7 +177,6 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     RedisModuleCallReply *r = NULL;
     if (!strcmp(aggregation->valuestring, SUM)) {
       r = RedisModule_Call(ctx, "HINCRBYFLOAT", "ccc", agg_key, timestamp_key, value);
-      // TODO on error cJSON_Delete(data) and RedisModule_FreeCallReply(confRep);
       RMUTIL_ASSERT_NOERROR(r, cleanup);
     } else if (!strcmp(aggregation->valuestring, AVG)) {
       long count = 0;

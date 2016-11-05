@@ -10,9 +10,6 @@
 #include "../rmutil/test_util.h"
 #include "../cJSON/cJSON.h"
 
-// TODO add expiration
-// TODO add interval duration. i.e '10 minute'
-
 #define SECOND "second"
 #define MINUTE "minute"
 #define HOUR "hour"

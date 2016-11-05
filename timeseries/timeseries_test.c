@@ -49,6 +49,10 @@
 // TODO Verify timestamp in data json
 
 int testTS(RedisModuleCtx *ctx) {
+  return 0;
+}
+
+int testTS2(RedisModuleCtx *ctx) {
   long count, timestamp = interval_timestamp("day", NULL, NULL);
   double val;
   char *eptr, timestamp_key[100], count_key[100], str[] = TEST_CONF;
@@ -143,8 +147,10 @@ int testTS(RedisModuleCtx *ctx) {
 int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
 
-  RMUtil_Test(testTS);
+  RMUtil_Test(testTS2);
   // Run the test twice. Make sure no leftovers in either ts or test.
+  RMUtil_Test(testTS2);
+
   RMUtil_Test(testTS);
 
   RedisModule_ReplyWithSimpleString(ctx, "PASS");
