@@ -22,8 +22,15 @@
 #define AVG "avg"
 
 #define RMCALL(reply, call) \
-  RedisModule_FreeCallReply(reply); \
+  if (reply) \
+    RedisModule_FreeCallReply(reply); \
   reply = call
+
+#define RMCALL_Assert(reply, call, expr) \
+  RMCALL(reply, call); \
+  RMUtil_Assert(expr);
+
+#define RMCALL_AssertNoErr(reply, call) RMCALL_Assert(reply, call, RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR)
 
 #define VALIDATE_STRING_TYPE(k) \
   if (k->type != cJSON_String) \
