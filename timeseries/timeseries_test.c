@@ -70,11 +70,10 @@ int testTS(RedisModuleCtx *ctx) {
   RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
   RMCALL(r, RedisModule_Call(ctx, "DEL", "c", "ts.agg:fff1:fff2:s1:sum"));
   RMUtil_Assert(RedisModule_CallReplyType(r) != REDISMODULE_REPLY_ERROR);
-  RedisModule_FreeCallReply(r);
 
   // Validate aggregation type
   strncpy (strstr (str,"avg"),"xxx", 3);
-  r = RedisModule_Call(ctx, "ts.conf", "cc", "testts", str);
+  RMCALL(r, RedisModule_Call(ctx, "ts.conf", "cc", "testts", str));
   RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
   RMUtil_Assert(!strcmp(RedisModule_CallReplyStringPtr(r, NULL), "Invalid json: aggregation is not one of: sum, avg\r\n"));
   strncpy (strstr (str,"xxx"),"avg", 3);
@@ -140,44 +139,6 @@ int testTS(RedisModuleCtx *ctx) {
 }
 
 
-int test2test(RedisModuleCtx *ctx) {
-  struct tm tm;
-  time_t timestamp = interval_timestamp("hour", NULL, NULL);
-  char timestamp_key[100];
-
-  time_t t = time(NULL);
-  sprintf(timestamp_key, "%li", t);
-  printf("T : %s\n", timestamp_key);
-
-  char *ttt = "2016:11:05 06:40:00";
-
-  timestamp = interval_timestamp("second", NULL, NULL);
-  sprintf(timestamp_key, "%li", timestamp);
-  printf("s: %s\n", timestamp_key);
-
-  timestamp = interval_timestamp("second", ttt, "%Y:%m:%d %H:%M:%S");
-  sprintf(timestamp_key, "%li", timestamp);
-  printf("s: %s\n", timestamp_key);
-
-  timestamp = interval_timestamp("hour", NULL, NULL);
-  sprintf(timestamp_key, "%li", timestamp);
-  printf("s: %s\n", timestamp_key);
-
-  timestamp = interval_timestamp("hour", ttt, "%Y:%m:%d %H:%M:%S");
-  sprintf(timestamp_key, "%li", timestamp);
-  printf("s: %s\n", timestamp_key);
-
-  timestamp = interval_timestamp("day", NULL, NULL);
-  sprintf(timestamp_key, "%li", timestamp);
-  printf("s: %s\n", timestamp_key);
-
-  timestamp = interval_timestamp("day", ttt, "%Y:%m:%d %H:%M:%S");
-  sprintf(timestamp_key, "%li", timestamp);
-  printf("s: %s\n", timestamp_key);
-
-  return 0;
-}
-
 // Unit test entry point for the timeseries module
 int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
@@ -185,8 +146,6 @@ int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RMUtil_Test(testTS);
   // Run the test twice. Make sure no leftovers in either ts or test.
   RMUtil_Test(testTS);
-
-  RMUtil_Test(test2test);
 
   RedisModule_ReplyWithSimpleString(ctx, "PASS");
   return REDISMODULE_OK;
