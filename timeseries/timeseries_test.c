@@ -149,97 +149,31 @@ int test2test(RedisModuleCtx *ctx) {
   sprintf(timestamp_key, "%li", t);
   printf("T : %s\n", timestamp_key);
 
+  char *ttt = "2016:11:05 06:40:00";
+
   timestamp = interval_timestamp("second", NULL, NULL);
   sprintf(timestamp_key, "%li", timestamp);
-  printf("Tm: %s\n", timestamp_key);
+  printf("s: %s\n", timestamp_key);
 
-  timestamp = interval_timestamp("second", "2016:11:04 05:31:02", "%Y:%m:%d %H:%M:%S");
+  timestamp = interval_timestamp("second", ttt, "%Y:%m:%d %H:%M:%S");
   sprintf(timestamp_key, "%li", timestamp);
-  printf("Ts: %s\n", timestamp_key);
-
-
-  timestamp = interval_timestamp("second", "2016-11-04T05:55:09Z", "%Y-%m-%dT%H:%M:%S");
-  sprintf(timestamp_key, "%li", timestamp);
-  printf("Ts: %s\n", timestamp_key);
-
-  timestamp = interval_timestamp("second", "2016-11-04T05:55:09.000Z", "%Y-%m-%dT%H:%M:%S");
-  sprintf(timestamp_key, "%li", timestamp);
-  printf("Ts: %s\n", timestamp_key);
-
-  printf("-------------------------------------\n");
-
-
-  timestamp = interval_timestamp("minute", NULL, NULL);
-  sprintf(timestamp_key, "%li", timestamp);
-  printf("Tm: %s\n", timestamp_key);
+  printf("s: %s\n", timestamp_key);
 
   timestamp = interval_timestamp("hour", NULL, NULL);
   sprintf(timestamp_key, "%li", timestamp);
-  printf("Th: %s\n", timestamp_key);
+  printf("s: %s\n", timestamp_key);
+
+  timestamp = interval_timestamp("hour", ttt, "%Y:%m:%d %H:%M:%S");
+  sprintf(timestamp_key, "%li", timestamp);
+  printf("s: %s\n", timestamp_key);
 
   timestamp = interval_timestamp("day", NULL, NULL);
   sprintf(timestamp_key, "%li", timestamp);
-  printf("Td: %s\n", timestamp_key);
+  printf("s: %s\n", timestamp_key);
 
-  gmtime_r(&t, &tm);
-
-  printf ("now tm_sec: %d\n", tm.tm_sec);
-  printf ("now tm_min: %d\n", tm.tm_min);
-  printf ("now tm_hour: %d\n", tm.tm_hour);
-  printf ("now tm_mday: %d\n", tm.tm_mday);
-  printf ("now tm_mon: %d\n", tm.tm_mon);
-  printf ("now tm_year: %d\n", tm.tm_year);
-  printf ("now tm_wday: %d\n", tm.tm_wday);
-  printf ("now tm_yday: %d\n", tm.tm_yday);
-  printf ("now tm_isdst: %d\n", tm.tm_isdst);
-
-
+  timestamp = interval_timestamp("day", ttt, "%Y:%m:%d %H:%M:%S");
   sprintf(timestamp_key, "%li", timestamp);
-  gmtime_r(&timestamp, &tm);
-
-  printf ("\n");
-  printf ("now tm_sec: %d\n", tm.tm_sec);
-  printf ("now tm_min: %d\n", tm.tm_min);
-  printf ("now tm_hour: %d\n", tm.tm_hour);
-  printf ("now tm_mday: %d\n", tm.tm_mday);
-  printf ("now tm_mon: %d\n", tm.tm_mon);
-  printf ("now tm_year: %d\n", tm.tm_year);
-  printf ("now tm_wday: %d\n", tm.tm_wday);
-  printf ("now tm_yday: %d\n", tm.tm_yday);
-  printf ("now tm_isdst: %d\n", tm.tm_isdst);
-
-
-
-  printf("Ts: %s\n", timestamp_key);
-  printf("Tl: %li\n", timestamp);
-  printf("%d %d %d\n", tm.tm_year, tm.tm_mon, tm.tm_mday);
-
-  timestamp = interval_timestamp("second", "2016:11:04 05:31:02", "%Y:%m:%d %H:%M:%S");
-
-  sprintf(timestamp_key, "%li", timestamp);
-
-  printf("Ts: %s\n", timestamp_key);
-  printf("Tl: %li\n", timestamp);
-  gmtime_r(&timestamp, &tm);
-  printf("%d %d %d\n", tm.tm_year, tm.tm_mon, tm.tm_mday);
-
-  timestamp = interval_timestamp("day", "2015:10:31 10:01:02.000", "%Y:%m:%d %H:%M:%S");
-
-  sprintf(timestamp_key, "%li", timestamp);
-
-  printf("Ts: %s\n", timestamp_key);
-  printf("Tl: %li\n", timestamp);
-  gmtime_r(&timestamp, &tm);
-  printf("%d %d %d\n", tm.tm_year, tm.tm_mon, tm.tm_mday);
-
-  timestamp = interval_timestamp("day", "2015:09:11 10:01:02.000", "%Y:%m:%d %H:%M:%S");
-
-  sprintf(timestamp_key, "%li", timestamp);
-
-  printf("Ts: %s\n", timestamp_key);
-  printf("Tl: %li\n", timestamp);
-  gmtime_r(&timestamp, &tm);
-  printf("%d %d %d\n", tm.tm_year, tm.tm_mon, tm.tm_mday);
+  printf("s: %s\n", timestamp_key);
 
   return 0;
 }
