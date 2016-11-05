@@ -18,16 +18,16 @@ cJSON *testConfBase(cJSON *conf, char *avg, char *interval) {
   if (conf)
     cJSON_Delete(conf);
 
-  const char *key_fields[]={"f1","f2"};
+  const char *key_fields[]={"userId","accountId"};
   cJSON *root = cJSON_CreateObject();
   cJSON_AddFalseToObject(root, "keep_original");
   cJSON_AddStringToObject(root, "interval", interval);
   cJSON_AddStringToObject(root, "timeformat", fmt);
   cJSON_AddItemToObject(root, "key_fields", cJSON_CreateStringArray(key_fields, 2));
   cJSON *ts_fields = cJSON_CreateArray();
-  cJSON_AddItemToArray(ts_fields, ts_object("s1", SUM));
-  cJSON_AddItemToArray(ts_fields, ts_object("s2", SUM));
-  cJSON_AddItemToArray(ts_fields, ts_object("a1", avg));
+  cJSON_AddItemToArray(ts_fields, ts_object("pagesVisited", SUM));
+  cJSON_AddItemToArray(ts_fields, ts_object("storageUsed", SUM));
+  cJSON_AddItemToArray(ts_fields, ts_object("trafficUsed", avg));
   cJSON_AddItemToObject(root, "ts_fields", ts_fields);
   return root;
 }
@@ -46,11 +46,11 @@ cJSON *testConfInvalidInterval(cJSON *conf) {
 
 cJSON *dataJson(double s, double a) {
   cJSON *data = cJSON_CreateObject();
-  cJSON_AddStringToObject(data, "f1", "fff1");
-  cJSON_AddStringToObject(data, "f2", "fff2");
-  cJSON_AddNumberToObject(data, "s1", s);
-  cJSON_AddNumberToObject(data, "s2", 111);
-  cJSON_AddNumberToObject(data, "a1", a);
+  cJSON_AddStringToObject(data, "userId", "userId1");
+  cJSON_AddStringToObject(data, "accountId", "accountId1");
+  cJSON_AddNumberToObject(data, "pagesVisited", s);
+  cJSON_AddNumberToObject(data, "storageUsed", 111);
+  cJSON_AddNumberToObject(data, "trafficUsed", a);
   return data;
 }
 
@@ -72,9 +72,9 @@ int testTS(RedisModuleCtx *ctx) {
 
   // Remove old data (previous tests)
   RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.conf"));
-  RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.agg:fff1:fff2:s2:sum"));
-  RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.agg:fff1:fff2:a1:avg"));
-  RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.agg:fff1:fff2:s1:sum"));
+  RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.agg:userId1:accountId1:storageUsed:sum"));
+  RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.agg:userId1:accountId1:trafficUsed:avg"));
+  RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.agg:userId1:accountId1:pagesVisited:sum"));
 
   // Validate aggregation type
   confJson = testConfInvalidAvg(confJson);
@@ -101,20 +101,20 @@ int testTS(RedisModuleCtx *ctx) {
   RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.add", "cc", "testts", cJSON_Print_static(data1)));
 
   // Verify count is 1
-  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", count_key));
+  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:userId1:accountId1:pagesVisited:sum", count_key));
   count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
   RMUtil_Assert(count == 1);
 
-  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:a1:avg", count_key));
+  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:userId1:accountId1:trafficUsed:avg", count_key));
   count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
   RMUtil_Assert(count == 1);
 
   // Verify value
-  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", timestamp_key));
+  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:userId1:accountId1:pagesVisited:sum", timestamp_key));
   val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
   RMUtil_Assert(val == 10.5);
 
-  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:a1:avg", timestamp_key));
+  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:userId1:accountId1:trafficUsed:avg", timestamp_key));
   val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
   RMUtil_Assert(val == 10);
 
@@ -122,17 +122,17 @@ int testTS(RedisModuleCtx *ctx) {
   RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.add", "cc", "testts", cJSON_Print_static(data2)));
 
   // Verify count is 2
-  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", count_key));
+  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:userId1:accountId1:pagesVisited:sum", count_key));
   count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
   RMUtil_Assert(count == 2);
 
   // Verify sum value is aggregated
-  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:s1:sum", timestamp_key));
+  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:userId1:accountId1:pagesVisited:sum", timestamp_key));
   val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
   RMUtil_Assert(val == 13);
 
   // Verify avg value is aggregated
-  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:fff1:fff2:a1:avg", timestamp_key));
+  RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:userId1:accountId1:trafficUsed:avg", timestamp_key));
   val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
   RMUtil_Assert(val == 15);
 
