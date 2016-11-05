@@ -14,7 +14,6 @@
 #define MINUTE "minute"
 #define HOUR "hour"
 #define DAY "day"
-#define WEEK "week"
 #define MONTH "month"
 #define YEAR "year"
 

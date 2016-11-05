@@ -5,6 +5,8 @@
 // TODO Verify keep original
 // TODO Verify timestamp in data json
 
+char *fmt = "%Y:%m:%d %H:%M:%S";
+
 cJSON *ts_object(char *field, char *agg) {
   cJSON *ts = cJSON_CreateObject();
   cJSON_AddStringToObject(ts, "field", field);
@@ -20,6 +22,7 @@ cJSON *testConfBase(cJSON *conf, char *avg, char *interval) {
   cJSON *root = cJSON_CreateObject();
   cJSON_AddFalseToObject(root, "keep_original");
   cJSON_AddStringToObject(root, "interval", interval);
+  cJSON_AddStringToObject(root, "timeformat", fmt);
   cJSON_AddItemToObject(root, "key_fields", cJSON_CreateStringArray(key_fields, 2));
   cJSON *ts_fields = cJSON_CreateArray();
   cJSON_AddItemToArray(ts_fields, ts_object("s1", SUM));
@@ -84,7 +87,7 @@ int testTS(RedisModuleCtx *ctx) {
   RMCALL(r, RedisModule_Call(ctx, "ts.conf", "cc", "testts", cJSON_Print_static(confJson)));
   RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
   RMUtil_Assert(!strcmp(RedisModule_CallReplyStringPtr(r, NULL),
-    "Invalid json: interval is not one of: second, minute, hour, day, week, month, year\r\n"));
+    "Invalid json: interval is not one of: second, minute, hour, day, month, year\r\n"));
 
   // Validate add before conf fails
   RMCALL(r, RedisModule_Call(ctx, "ts.add", "cc", "testts", cJSON_Print_static(data1)));
@@ -133,6 +136,18 @@ int testTS(RedisModuleCtx *ctx) {
   val = strtod(RedisModule_CallReplyStringPtr(r, NULL), &eptr);
   RMUtil_Assert(val == 15);
 
+  // Add with timestamp
+  cJSON_AddStringToObject(data2, "timestamp", "2016:10:05 06:40:01");
+  RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.add", "cc", "testts", cJSON_Print_static(data2)));
+
+  // Add with wrong timestamp
+  cJSON_AddStringToObject(data1, "timestamp", "2016-10-05 06:40:01");
+  //RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.add", "cc", "testts", cJSON_Print_static(data1)));
+  RMCALL(r, RedisModule_Call(ctx, "ts.add", "cc", "testts", cJSON_Print_static(data1)));
+  RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
+  RMUtil_Assert(!strcmp(RedisModule_CallReplyStringPtr(r, NULL),
+      "Invalid json: timestamp format and data mismatch\r\n"));
+
   cJSON_Delete(data1);
   cJSON_Delete(data2);
   cJSON_Delete(confJson);
@@ -140,6 +155,36 @@ int testTS(RedisModuleCtx *ctx) {
   return 0;
 }
 
+#define EQ(interval, t1, t2) \
+  RMUtil_Assert( interval_timestamp(interval, t1, fmt) == interval_timestamp(interval, t2, fmt))
+
+#define NEQ(interval, t1, t2) \
+  RMUtil_Assert( interval_timestamp(interval, t1, fmt) != interval_timestamp(interval, t2, fmt))
+
+int testTimeInterval(RedisModuleCtx *ctx) {
+  EQ  (SECOND, "2016:11:05 06:40:00.001", "2016:11:05 06:40:00.002");
+  NEQ (SECOND, "2016:11:05 06:40:01", "2016:11:05 06:40:02");
+
+  EQ  (MINUTE, "2016:11:05 06:40:01", "2016:11:05 06:40:02");
+  NEQ (MINUTE, "2016:11:05 06:41:01", "2016:11:05 06:42:02");
+
+  EQ  (HOUR, "2016:11:05 06:41:01", "2016:11:05 06:42:02");
+  NEQ (HOUR, "2016:11:05 07:41:01", "2016:11:05 06:42:02");
+
+  EQ  (DAY, "2016:11:05 07:41:01", "2016:11:05 06:42:02");
+  NEQ (DAY, "2016:11:06 07:41:01", "2016:11:05 06:42:02");
+
+  EQ  (MONTH, "2016:11:06 07:41:01", "2016:11:05 06:42:02");
+  NEQ (MONTH, "2016:10:06 07:41:01", "2016:11:05 06:42:02");
+
+  EQ  (YEAR, "2016:10:06 07:41:01", "2016:11:05 06:42:02");
+  NEQ (YEAR, "2016:10:06 07:41:01", "2015:11:05 06:42:02");
+
+  // Wrong format
+  RMUtil_Assert( interval_timestamp(DAY, "2016-10-06 07:41:01", fmt) == 0)
+
+  return 0;
+}
 // Unit test entry point for the timeseries module
 int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
@@ -147,6 +192,8 @@ int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RMUtil_Test(testTS);
   // Run the test twice. Make sure no leftovers in either ts or test.
   RMUtil_Test(testTS);
+
+  RMUtil_Test(testTimeInterval);
 
   RedisModule_ReplyWithSimpleString(ctx, "PASS");
   return REDISMODULE_OK;

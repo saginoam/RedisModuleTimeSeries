@@ -1,7 +1,5 @@
 #include "timeseries.h"
 
-// TODO Test using cjson
-// TODO add timestamp and format to json
 // TODO Update readme with examples
 // TODO Update readme with elasticsearch compare
 // TODO Ask dvir about: memory leak
@@ -13,7 +11,7 @@
 // TODO add interval duration. i.e '10 minute'
 // TODO Implement keep original
 // TODO interval should be per field, not global
-char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, WEEK, MONTH, YEAR};
+char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, MONTH, YEAR};
 
 char *validAggs[] = {SUM, AVG};
 
@@ -33,7 +31,8 @@ void FreeCallReply(RedisModuleCallReply **rp) {
  *     { "field": "page_views", "aggregation": "avg" }
  *   ],
  *   "interval": "hour",
- *   "keep_original": false
+ *   "keep_original": false,
+ *   "timeformat": "%Y:%m:%d %H:%M:%S"
  *   }'
  *
  * */
@@ -46,7 +45,12 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
     return "Invalid json: keep_original is not a boolean";
 
   // verify interval parameter
-  cJSON *interval = VALIDATE_ENUM(conf, interval, validIntervals, "second, minute, hour, day, week, month, year")
+  cJSON *interval = VALIDATE_ENUM(conf, interval, validIntervals, "second, minute, hour, day, month, year")
+
+  long timestamp = interval_timestamp(interval->valuestring, cJSON_GetObjectString(data, "timestamp"),
+      cJSON_GetObjectString(conf, "timeformat"));
+  if (!timestamp)
+    return "Invalid json: timestamp format and data mismatch";
 
   // verify key_fields
   cJSON *key_fields = VALIDATE_ARRAY(conf, key_fields)
@@ -84,21 +88,21 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
 
 time_t interval_timestamp(char *interval, const char *timestamp, const char *format) {
   struct tm st;
-  if (timestamp) {
-    // TODO Handle failure
-    memset(&st, 0, sizeof(struct tm));
-    strptime(timestamp, format, &st);
+  memset(&st, 0, sizeof(struct tm));
+  if (timestamp && format) {
+    if (!strptime(timestamp, format, &st))
+      return 0;
   }
   else {
     time_t t = time(NULL);
     gmtime_r(&t, &st);
   }
 
-  // TODO do we support week?
-  st.tm_sec =  0; if (!strcmp(interval, SECOND)) return mktime(&st);
-  st.tm_min =  0; if (!strcmp(interval, MINUTE)) return mktime(&st);
-  st.tm_hour = 0; if (!strcmp(interval, HOUR))   return mktime(&st);
-  st.tm_mday = 0; if (!strcmp(interval, DAY))    return mktime(&st);
+  if (!strcmp(interval, SECOND)) return mktime(&st);
+  st.tm_sec =  0; if (!strcmp(interval, MINUTE)) return mktime(&st);
+  st.tm_min =  0; if (!strcmp(interval, HOUR)) return mktime(&st);
+  st.tm_hour = 0; if (!strcmp(interval, DAY))   return mktime(&st);
+  st.tm_mday = 0; if (!strcmp(interval, MONTH))    return mktime(&st);
   st.tm_mon =  0;
   return mktime(&st);
 }
@@ -142,10 +146,10 @@ int TSAdd(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     return RedisModule_ReplyWithError(ctx, jsonErr);
   }
 
-  // Create timestamp now (Use a single timestamp for all entries, not to accidently use different entries in case
+  // Create timestamp. Use a single timestamp for all entries, not to accidently use different entries in case
   // during the calculation the time has changed)
-  // TODO allow adding timestamp instead of 'now'
-  long timestamp = interval_timestamp(cJSON_GetObjectItem(conf, "interval")->valuestring, NULL, NULL);
+  long timestamp = interval_timestamp(cJSON_GetObjectItem(conf, "interval")->valuestring,
+    cJSON_GetObjectString(data, "timestamp"), cJSON_GetObjectString(conf, "timeformat"));
 
   char key_prefix[1000] = "ts.agg:";
   cJSON *key_fields = cJSON_GetObjectItem(conf, "key_fields");

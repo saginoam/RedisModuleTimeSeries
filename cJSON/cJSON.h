@@ -91,6 +91,10 @@ extern void   cJSON_Delete(cJSON *c);
 extern int	  cJSON_GetArraySize(const cJSON *array);
 /* Retrieve item number "item" from array "array". Returns NULL if unsuccessful. */
 extern cJSON *cJSON_GetArrayItem(const cJSON *array, int item);
+
+/* Retrieve item string value. Returns NULL if unsuccessful. */
+char *cJSON_GetObjectString(const cJSON *object, const char *string);
+
 /* Get item "string" from object. Case insensitive. */
 extern cJSON *cJSON_GetObjectItem(const cJSON *object, const char *string);
 extern int cJSON_HasObjectItem(const cJSON *object, const char *string);

@@ -1614,6 +1614,11 @@ cJSON *cJSON_GetArrayItem(const cJSON *array, int item)
     return c;
 }
 
+char *cJSON_GetObjectString(const cJSON *object, const char *string) {
+    cJSON *o = cJSON_GetObjectItem(object, string);
+    return o ? o->valuestring : NULL;
+}
+
 cJSON *cJSON_GetObjectItem(const cJSON *object, const char *string)
 {
     cJSON *c = object ? object->child : 0;
