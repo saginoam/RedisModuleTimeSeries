@@ -432,36 +432,37 @@ int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 }
 
 
-//int TSGetIdx(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-//  RedisModule_AutoMemory(ctx);
-//
-//  if (argc != 3)
-//    return RedisModule_WrongArity(ctx);
-//
-//  RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
-//
-//  int type = RedisModule_KeyType(key);
-//  if (type == REDISMODULE_KEYTYPE_EMPTY)
-//    return RedisModule_ReplyWithError(ctx,"Key doesn't exist");
-//
-//  if (RedisModule_ModuleTypeGetType(key) != TSType)
-//    return RedisModule_ReplyWithError(ctx,"Invalid keyy type");
-//
-//  long long idx;
-//  if ((RedisModule_StringToLongLong(argv[2],&idx) != REDISMODULE_OK))
-//    return RedisModule_ReplyWithError(ctx,"ERR invalid index: must be a signed 64 bit integer");
-//
-//  /* Create an empty value object if the key is currently empty. */
-//  struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
-//
-//  if (tso->len <= idx) {
-//    return RedisModule_ReplyWithError(ctx,"ERR invalid index: index not exist");
-//  }
-//
-//  RedisModule_ReplyWithLongLong(ctx,tso->arr[idx]);
-//
-//  return REDISMODULE_OK;
-//}
+int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  RedisModule_AutoMemory(ctx);
+
+  if (argc != 3)
+    return RedisModule_WrongArity(ctx);
+
+  RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
+
+  int type = RedisModule_KeyType(key);
+  if (type == REDISMODULE_KEYTYPE_EMPTY)
+    return RedisModule_ReplyWithError(ctx,"Key doesn't exist");
+
+  if (RedisModule_ModuleTypeGetType(key) != TSType)
+    return RedisModule_ReplyWithError(ctx,"Invalid key type");
+
+  struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
+
+  // TODO read timestamp from command line
+  // TODO add timeformat to create
+  time_t timestamp = interval2timestamp(tso->interval, NULL, NULL);
+
+  size_t idx = idx_timestamp(tso->init_timestamp, timestamp, tso->interval);
+
+  if (tso->len <= idx) {
+    return RedisModule_ReplyWithError(ctx,"ERR invalid value: timestamp not exist");
+  }
+
+  RedisModule_ReplyWithDouble(ctx,tso->entry[idx].avg);
+
+  return REDISMODULE_OK;
+}
 
 int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   // Register the timeseries module itself
@@ -478,7 +479,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   RMUtil_RegisterWriteCmd(ctx, "ts.add", TSAdd);
 
   RMUtil_RegisterWriteCmd(ctx, "ts.insert", TSInsert);
-//  RMUtil_RegisterWriteCmd(ctx, "ts.getidx", TSGetIdx);
+  RMUtil_RegisterWriteCmd(ctx, "ts.get", TSGet);
   RMUtil_RegisterWriteCmd(ctx, "ts.create", TSCreate);
 
   // register the unit test
