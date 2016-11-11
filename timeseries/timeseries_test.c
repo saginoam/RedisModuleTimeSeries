@@ -180,6 +180,43 @@ int testTimeInterval(RedisModuleCtx *ctx) {
 
   return 0;
 }
+
+#define IDX(interval, t1, t2, idx) RMUtil_Assert( idx_timestamp( \
+  interval_timestamp(interval, t1, fmt), interval_timestamp(interval, t2, fmt), str2interval(interval)) == idx)
+
+#define IDXGT(interval, t1, t2, idx) RMUtil_Assert( idx_timestamp( \
+  interval_timestamp(interval, t1, fmt), interval_timestamp(interval, t2, fmt), str2interval(interval)) > idx)
+
+int testTimestampIdx(RedisModuleCtx *ctx) {
+
+  IDX (SECOND, "2016:11:05 06:40:00.001", "2016:11:05 06:40:00.002", 0);
+
+  IDX (SECOND, "2016:11:05 06:40:01", "2016:11:05 06:40:02", 1);
+  IDX (SECOND, "2016:11:05 06:40:01", "2016:11:05 06:40:03", 2);
+  IDX (SECOND, "2016:11:05 06:40:01", "2016:11:06 06:40:03", 86402);
+
+  IDX (MINUTE, "2016:11:05 06:40:01", "2016:11:05 06:40:02", 0);
+  IDX (MINUTE, "2016:11:05 06:41:01", "2016:11:05 06:42:02", 1);
+
+  IDX (HOUR, "2016:11:05 06:41:01", "2016:11:05 06:42:02", 0);
+  IDX (HOUR, "2016:11:05 07:41:01", "2016:11:05 08:42:02", 1);
+
+  IDX (DAY, "2016:11:05 07:41:01", "2016:11:05 06:42:02", 0);
+  IDX (DAY, "2016:11:06 07:41:01", "2016:11:07 06:42:02",1 );
+  IDX (DAY, "2016:11:06 07:41:01", "2016:11:07 06:42:02",1 );
+
+  IDX (MONTH, "2016:11:06 07:41:01", "2016:11:05 06:42:02", 0);
+  IDX (MONTH, "2016:10:06 07:41:01", "2016:11:05 06:42:02", 1);
+
+  IDX (YEAR, "2016:10:06 07:41:01", "2016:11:05 06:42:02", 0);
+  IDX (YEAR, "2015:10:06 07:41:01", "2016:11:05 06:42:02", 1);
+
+  IDX (YEAR, "2016:10:06 07:41:01", "2015:11:05 06:42:02", -1);
+
+  IDXGT (YEAR, "2016:10:06 07:41:01", "2015:11:05 06:42:02", TS_MAX_ENTRIES);
+
+  return 0;
+}
 // Unit test entry point for the timeseries module
 int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
@@ -189,6 +226,8 @@ int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RMUtil_Test(testTS);
 
   RMUtil_Test(testTimeInterval);
+
+  RMUtil_Test(testTimestampIdx);
 
   RedisModule_ReplyWithSimpleString(ctx, "PASS");
   return REDISMODULE_OK;

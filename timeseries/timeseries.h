@@ -20,6 +20,18 @@
 #define SUM "sum"
 #define AVG "avg"
 
+typedef enum {
+  none = 0,
+  second = 1,
+  minute = 60,
+  hour = 3600,
+  day = 86400,
+  month = 2628000,
+  year = 31536000
+} Interval;
+
+#define TS_MAX_ENTRIES 1000000
+
 #define RMCALL(reply, call) \
   if (reply) \
     RedisModule_FreeCallReply(reply); \
@@ -73,7 +85,11 @@
         return RedisModule_ReplyWithError(ctx, strcat(msg, entry)); \
     }
 
-time_t interval_timestamp(char *interval, const char *timestamp, const char *format);
+time_t interval_timestamp(const char *interval, const char *timestamp, const char *format);
+
+size_t idx_timestamp(time_t init_timestamp, size_t cur_timestamp, Interval interval);
+
+Interval str2interval(const char *interval);
 
 // Test function
 int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);

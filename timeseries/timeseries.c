@@ -98,7 +98,7 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
   return NULL;
 }
 
-time_t interval_timestamp(char *interval, const char *timestamp, const char *format) {
+time_t interval_timestamp(const char *interval, const char *timestamp, const char *format) {
   struct tm st;
   memset(&st, 0, sizeof(struct tm));
   if (timestamp && format) {
@@ -260,21 +260,28 @@ int TSConf(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
 static RedisModuleType *TSType; //For now its just an array
 
-struct TSObject {
-  long *arr;
+typedef struct TSEntry {
+  unsigned short count;
+  double avg;
+}TSEntry;
+
+typedef struct TSObject {
+  TSEntry *entry;
   size_t len;
-};
+  time_t init_timestamp;
+  Interval interval;
+}TSObject;
 
 struct TSObject *createTSObject(void) {
   struct TSObject *o;
   o = RedisModule_Alloc(sizeof(*o));
-  o->arr = NULL;
+  o->entry = NULL;
   o->len = 0;
   return o;
 }
 
 void TSReleaseObject(struct TSObject *o) {
-  RedisModule_Free(o->arr);
+  RedisModule_Free(o->entry);
   RedisModule_Free(o);
 }
 
@@ -288,7 +295,7 @@ void *TSRdbLoad(RedisModuleIO *rdb, int encver) {
   tso->len = RedisModule_LoadUnsigned(rdb);
   size_t len = 0;
   if (tso->len)
-    tso->arr = (long*)RedisModule_LoadStringBuffer(rdb, &len);
+    tso->entry = (TSEntry *)RedisModule_LoadStringBuffer(rdb, &len);
 
   return tso;
 }
@@ -297,13 +304,13 @@ void TSRdbSave(RedisModuleIO *rdb, void *value) {
   struct TSObject *tso = value;
   RedisModule_SaveUnsigned(rdb,tso->len);
   if (tso->len)
-    RedisModule_SaveStringBuffer(rdb,(const char *)tso->arr,tso->len * sizeof(long));
+    RedisModule_SaveStringBuffer(rdb,(const char *)tso->entry,tso->len * sizeof(double));
 }
 
 void TSAofRewrite(RedisModuleIO *aof, RedisModuleString *key, void *value) {
   struct TSObject *tso = value;
-  if(tso->arr) {
-    RedisModule_EmitAOF(aof,"TS.INSERT","sc",key,tso->arr);
+  if(tso->entry) {
+    RedisModule_EmitAOF(aof,"TS.INSERT","sc",key,tso->entry);
   }
 }
 
@@ -312,8 +319,11 @@ void TSDigest(RedisModuleDigest *digest, void *value) {
 }
 
 void TSFree(void *value) {
-  printf("%d\n", __LINE__);
   TSReleaseObject(value);
+}
+
+size_t idx_timestamp(time_t init_timestamp, size_t cur_timestamp, Interval interval) {
+  return difftime(cur_timestamp, init_timestamp) / interval;
 }
 
 /* Add new item to array
@@ -322,40 +332,31 @@ void TSFree(void *value) {
  * */
 void TSAddItem(struct TSObject *o, double value) {
   size_t newSize = o->len + 1;
-  o->arr = RedisModule_Realloc(o->arr, sizeof(long) * newSize);
+  o->entry = RedisModule_Realloc(o->entry, sizeof(TSEntry) * newSize);
   // When implementing chunks needs to zero new bytes
-  o->arr[o->len] = value;
+  //o->entry[o->len] = value;
   o->len = newSize;
 }
 
 int TSInsert(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
 
-  if (argc != 4)
+  if (argc != 3)
     return RedisModule_WrongArity(ctx);
 
   RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
 
-  int type = RedisModule_KeyType(key);
-  if (type != REDISMODULE_KEYTYPE_EMPTY && RedisModule_ModuleTypeGetType(key) != TSType)
-    return RedisModule_ReplyWithError(ctx,REDISMODULE_ERRORMSG_WRONGTYPE);
+  if (RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_EMPTY)
+    return RedisModule_ReplyWithError(ctx, "key doesn't exist");
 
-  long long idx;
-  if ((RedisModule_StringToLongLong(argv[2],&idx) != REDISMODULE_OK))
-    return RedisModule_ReplyWithError(ctx,"ERR invalid index: must be a signed 64 bit integer");
+  if (RedisModule_ModuleTypeGetType(key) != TSType)
+    return RedisModule_ReplyWithError(ctx, "key is not time series");
 
   double value;
-  if ((RedisModule_StringToDouble(argv[3],&value) != REDISMODULE_OK))
+  if ((RedisModule_StringToDouble(argv[2],&value) != REDISMODULE_OK))
     return RedisModule_ReplyWithError(ctx,"ERR invalid value: must be a double");
 
-  /* Create an empty value object if the key is currently empty. */
-  struct TSObject *tso;
-  if (type == REDISMODULE_KEYTYPE_EMPTY) {
-    tso = createTSObject();
-    RedisModule_ModuleTypeSetValue(key,TSType,tso);
-  } else {
-    tso = RedisModule_ModuleTypeGetValue(key);
-  }
+  struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
 
   /* Add new item */
   TSAddItem(tso, value);
@@ -368,7 +369,18 @@ int TSInsert(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   return REDISMODULE_OK;
 }
 
-int TSGetIdx(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+Interval str2interval(const char *interval) {
+  if (!strcmp(SECOND, interval)) return second;
+  if (!strcmp(MINUTE, interval)) return minute;
+  if (!strcmp(HOUR, interval)) return hour;
+  if (!strcmp(DAY, interval)) return day;
+  if (!strcmp(MONTH, interval)) return month;
+  if (!strcmp(YEAR, interval)) return year;
+
+  return none;
+}
+
+int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
 
   if (argc != 3)
@@ -376,28 +388,56 @@ int TSGetIdx(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
   RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
 
-  int type = RedisModule_KeyType(key);
-  if (type == REDISMODULE_KEYTYPE_EMPTY)
-    return RedisModule_ReplyWithError(ctx,"Key doesn't exist");
+  if (RedisModule_KeyType(key) != REDISMODULE_KEYTYPE_EMPTY)
+    return RedisModule_ReplyWithError(ctx,"key already exist");
 
-  if (RedisModule_ModuleTypeGetType(key) != TSType)
-    return RedisModule_ReplyWithError(ctx,"Invalid keyy type");
+  Interval interval = str2interval(RedisModule_StringPtrLen(argv[2], NULL));
+  if (interval == none)
+    return RedisModule_ReplyWithError(ctx,"Invalid interval. Must be one of: second, minute, hour, day, month, year");
 
-  long long idx;
-  if ((RedisModule_StringToLongLong(argv[2],&idx) != REDISMODULE_OK))
-    return RedisModule_ReplyWithError(ctx,"ERR invalid index: must be a signed 64 bit integer");
+  time_t init_timestamp = interval_timestamp(RedisModule_StringPtrLen(argv[2], NULL), NULL, NULL);
 
-  /* Create an empty value object if the key is currently empty. */
-  struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
+  struct TSObject *tso = createTSObject();
+  RedisModule_ModuleTypeSetValue(key,TSType,tso);
+  tso->init_timestamp = init_timestamp;
+  tso->interval = interval;
 
-  if (tso->len <= idx) {
-    return RedisModule_ReplyWithError(ctx,"ERR invalid index: index not exist");
-  }
-
-  RedisModule_ReplyWithLongLong(ctx,tso->arr[idx]);
+  RedisModule_ReplyWithLongLong(ctx,tso->len);
 
   return REDISMODULE_OK;
 }
+
+
+//int TSGetIdx(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+//  RedisModule_AutoMemory(ctx);
+//
+//  if (argc != 3)
+//    return RedisModule_WrongArity(ctx);
+//
+//  RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
+//
+//  int type = RedisModule_KeyType(key);
+//  if (type == REDISMODULE_KEYTYPE_EMPTY)
+//    return RedisModule_ReplyWithError(ctx,"Key doesn't exist");
+//
+//  if (RedisModule_ModuleTypeGetType(key) != TSType)
+//    return RedisModule_ReplyWithError(ctx,"Invalid keyy type");
+//
+//  long long idx;
+//  if ((RedisModule_StringToLongLong(argv[2],&idx) != REDISMODULE_OK))
+//    return RedisModule_ReplyWithError(ctx,"ERR invalid index: must be a signed 64 bit integer");
+//
+//  /* Create an empty value object if the key is currently empty. */
+//  struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
+//
+//  if (tso->len <= idx) {
+//    return RedisModule_ReplyWithError(ctx,"ERR invalid index: index not exist");
+//  }
+//
+//  RedisModule_ReplyWithLongLong(ctx,tso->arr[idx]);
+//
+//  return REDISMODULE_OK;
+//}
 
 int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   // Register the timeseries module itself
@@ -414,7 +454,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   RMUtil_RegisterWriteCmd(ctx, "ts.add", TSAdd);
 
   RMUtil_RegisterWriteCmd(ctx, "ts.insert", TSInsert);
-  RMUtil_RegisterWriteCmd(ctx, "ts.getidx", TSGetIdx);
+//  RMUtil_RegisterWriteCmd(ctx, "ts.getidx", TSGetIdx);
+  RMUtil_RegisterWriteCmd(ctx, "ts.create", TSCreate);
 
   // register the unit test
   RMUtil_RegisterWriteCmd(ctx, "ts.test", TestModule);
