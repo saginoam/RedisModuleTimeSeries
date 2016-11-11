@@ -98,6 +98,10 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
   return NULL;
 }
 
+time_t interval2timestamp(Interval interval, const char *timestamp, const char *format) {
+  return interval_timestamp(interval2str(interval), timestamp, format);
+}
+
 time_t interval_timestamp(const char *interval, const char *timestamp, const char *format) {
   struct tm st;
   memset(&st, 0, sizeof(struct tm));
@@ -329,13 +333,22 @@ size_t idx_timestamp(time_t init_timestamp, size_t cur_timestamp, Interval inter
 /* Add new item to array
  * Currently increase in 1 item at a time.
  * TODO increase array size in chunks
+ * TODO Handle reached entries limit
  * */
 void TSAddItem(struct TSObject *o, double value) {
-  size_t newSize = o->len + 1;
-  o->entry = RedisModule_Realloc(o->entry, sizeof(TSEntry) * newSize);
-  // When implementing chunks needs to zero new bytes
-  //o->entry[o->len] = value;
-  o->len = newSize;
+  time_t cur_timestamp = interval2timestamp(o->interval, NULL, NULL);
+  size_t idx = idx_timestamp(o->init_timestamp, cur_timestamp, o->interval);
+
+  if (idx >= o->len) {
+    size_t newSize = idx + 1;
+    o->entry = RedisModule_Realloc(o->entry, sizeof(TSEntry) * newSize);
+    bzero(&o->entry[o->len], sizeof(TSEntry) * (newSize - o->len));
+    o->len = newSize;
+  }
+
+  TSEntry *e = &o->entry[idx];
+  e->avg = (e->avg * e->count + value) / (e->count + 1);
+  e->count++;
 }
 
 int TSInsert(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
@@ -376,6 +389,17 @@ Interval str2interval(const char *interval) {
   if (!strcmp(DAY, interval)) return day;
   if (!strcmp(MONTH, interval)) return month;
   if (!strcmp(YEAR, interval)) return year;
+
+  return none;
+}
+
+const char *interval2str(Interval interval) {
+  if (interval == second) return SECOND;
+  if (interval == minute) return MINUTE;
+  if (interval == hour) return HOUR;
+  if (interval == day) return DAY;
+  if (interval == month) return MONTH;
+  if (interval == year) return YEAR;
 
   return none;
 }

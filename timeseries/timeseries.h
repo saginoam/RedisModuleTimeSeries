@@ -4,6 +4,8 @@
 #define _XOPEN_SOURCE // For the use of strptime
 #include <time.h>
 
+#include <strings.h>
+
 #include "../redismodule.h"
 #include "../rmutil/util.h"
 #include "../rmutil/strings.h"
@@ -90,6 +92,8 @@ time_t interval_timestamp(const char *interval, const char *timestamp, const cha
 size_t idx_timestamp(time_t init_timestamp, size_t cur_timestamp, Interval interval);
 
 Interval str2interval(const char *interval);
+
+const char *interval2str(Interval interval);
 
 // Test function
 int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
