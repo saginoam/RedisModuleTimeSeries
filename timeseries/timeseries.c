@@ -415,7 +415,7 @@ const char *interval2str(Interval interval) {
 int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
 
-  if (argc != 3)
+  if (argc < 3 || argc > 4)
     return RedisModule_WrongArity(ctx);
 
   RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
@@ -427,15 +427,13 @@ int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   if (interval == none)
     return RedisModule_ReplyWithError(ctx,"Invalid interval. Must be one of: second, minute, hour, day, month, year");
 
-  time_t init_timestamp = interval_timestamp(RedisModule_StringPtrLen(argv[2], NULL), NULL, NULL);
-
   struct TSObject *tso = createTSObject();
   RedisModule_ModuleTypeSetValue(key,TSType,tso);
   tso->interval = interval;
-  // TODO ALlow configuration
-  tso->init_timestamp = init_timestamp;
   // TODO Allow configuring
   tso->timefmt = DEFAULT_TIMEFMT;
+  tso->init_timestamp = interval_timestamp(RedisModule_StringPtrLen(argv[2], NULL),
+      argc == 4 ? (char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL, tso->timefmt);
 
   RedisModule_ReplyWithLongLong(ctx,tso->len);
 
