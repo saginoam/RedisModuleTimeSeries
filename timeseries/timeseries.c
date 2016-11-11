@@ -274,6 +274,7 @@ typedef struct TSObject {
   size_t len;
   time_t init_timestamp;
   Interval interval;
+  const char *timefmt;
 }TSObject;
 
 struct TSObject *createTSObject(void) {
@@ -335,9 +336,8 @@ size_t idx_timestamp(time_t init_timestamp, size_t cur_timestamp, Interval inter
  * TODO increase array size in chunks
  * TODO Handle reached entries limit
  * */
-void TSAddItem(struct TSObject *o, double value) {
-  time_t cur_timestamp = interval2timestamp(o->interval, NULL, NULL);
-  size_t idx = idx_timestamp(o->init_timestamp, cur_timestamp, o->interval);
+void TSAddItem(struct TSObject *o, double value, time_t timestamp) {
+  size_t idx = idx_timestamp(o->init_timestamp, timestamp, o->interval);
 
   if (idx >= o->len) {
     size_t newSize = idx + 1;
@@ -354,7 +354,7 @@ void TSAddItem(struct TSObject *o, double value) {
 int TSInsert(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
 
-  if (argc != 3)
+  if (argc < 3 || argc > 4)
     return RedisModule_WrongArity(ctx);
 
   RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
@@ -371,8 +371,16 @@ int TSInsert(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
   struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
 
+  time_t timestamp = interval2timestamp(tso->interval, argc == 4 ? (char*)(char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL, tso->timefmt);
+
+  if (!timestamp)
+    return RedisModule_ReplyWithError(ctx,"ERR invalid value: Time Stamp is not valid");
+
+  if (timestamp < tso->init_timestamp)
+    return RedisModule_ReplyWithError(ctx,"ERR invalid value: Time Stamp is too early");
+
   /* Add new item */
-  TSAddItem(tso, value);
+  TSAddItem(tso, value, timestamp);
 
   RedisModule_ReplyWithLongLong(ctx,tso->len);
 
@@ -423,8 +431,11 @@ int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
   struct TSObject *tso = createTSObject();
   RedisModule_ModuleTypeSetValue(key,TSType,tso);
-  tso->init_timestamp = init_timestamp;
   tso->interval = interval;
+  // TODO ALlow configuration
+  tso->init_timestamp = init_timestamp;
+  // TODO Allow configuring
+  tso->timefmt = DEFAULT_TIMEFMT;
 
   RedisModule_ReplyWithLongLong(ctx,tso->len);
 
@@ -435,7 +446,7 @@ int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
 
-  if (argc != 3)
+  if (argc < 3 || argc > 4)
     return RedisModule_WrongArity(ctx);
 
   RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
@@ -449,9 +460,7 @@ int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
   struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
 
-  // TODO read timestamp from command line
-  // TODO add timeformat to create
-  time_t timestamp = interval2timestamp(tso->interval, NULL, NULL);
+  time_t timestamp = interval2timestamp(tso->interval, argc == 4 ? (char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL, tso->timefmt);
 
   size_t idx = idx_timestamp(tso->init_timestamp, timestamp, tso->interval);
 
