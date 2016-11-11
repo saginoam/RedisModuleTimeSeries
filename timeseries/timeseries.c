@@ -18,6 +18,10 @@
 //   Verify all keys exist
 //   Verify all fields exist
 //   Verify keep original
+// TODO Usability
+//   Persistency
+//   Last inserted timestamp/offset, so client can know from where to begin
+
 
 char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, MONTH, YEAR};
 
@@ -317,13 +321,11 @@ void TSFree(void *value) {
  * TODO increase array size in chunks
  * */
 void TSAddItem(struct TSObject *o, double value) {
-  printf("Add item [%zu]\n", o->len);
   size_t newSize = o->len + 1;
-  long *arr = RedisModule_Realloc(o->arr, sizeof(long) * newSize);
+  o->arr = RedisModule_Realloc(o->arr, sizeof(long) * newSize);
   // When implementing chunks needs to zero new bytes
-  arr[o->len] = value;
+  o->arr[o->len] = value;
   o->len = newSize;
-  o->arr = arr;
 }
 
 int TSInsert(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
