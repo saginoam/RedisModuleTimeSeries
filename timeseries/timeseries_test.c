@@ -1,6 +1,6 @@
 #include "timeseries.h"
 
-char *fmt = "%Y:%m:%d %H:%M:%S";
+char *fmt = DEFAULT_TIMEFMT;
 
 cJSON *ts_object(char *field, char *agg) {
   cJSON *ts = cJSON_CreateObject();

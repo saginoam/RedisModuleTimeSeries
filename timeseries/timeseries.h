@@ -22,6 +22,8 @@
 #define SUM "sum"
 #define AVG "avg"
 
+#define DEFAULT_TIMEFMT "%Y:%m:%d %H:%M:%S"
+
 typedef enum {
   none = 0,
   second = 1,
