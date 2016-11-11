@@ -468,7 +468,9 @@ int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     return RedisModule_ReplyWithError(ctx,"ERR invalid value: timestamp not exist");
   }
 
+  RedisModule_ReplyWithArray(ctx, 2);
   RedisModule_ReplyWithDouble(ctx,tso->entry[idx].avg);
+  RedisModule_ReplyWithLongLong(ctx,tso->entry[idx].count);
 
   return REDISMODULE_OK;
 }
