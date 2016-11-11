@@ -21,6 +21,7 @@
 
 #define SUM "sum"
 #define AVG "avg"
+#define COUNT "count"
 
 #define DEFAULT_TIMEFMT "%Y:%m:%d %H:%M:%S"
 

@@ -49,6 +49,17 @@ cJSON *dataJson(double s, double a) {
   return data;
 }
 
+int testTSApi(RedisModuleCtx *ctx) {
+
+  //RedisModuleCallReply *r = NULL;
+
+  //create
+  //insert
+  //get
+
+  return 0;
+}
+
 int testTS(RedisModuleCtx *ctx) {
   long count, timestamp = interval_timestamp(DAY, NULL, NULL);
   double val;
@@ -224,6 +235,8 @@ int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RMUtil_Test(testTS);
   // Run the test twice. Make sure no leftovers in either ts or test.
   RMUtil_Test(testTS);
+
+  RMUtil_Test(testTSApi);
 
   RMUtil_Test(testTimeInterval);
 

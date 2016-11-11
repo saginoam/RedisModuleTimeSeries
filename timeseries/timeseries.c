@@ -382,7 +382,7 @@ int TSInsert(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   /* Add new item */
   TSAddItem(tso, value, timestamp);
 
-  RedisModule_ReplyWithLongLong(ctx,tso->len);
+  RedisModule_ReplyWithSimpleString(ctx, "OK");
 
   /* Didn't understand it yet. Just copied from example */
   //RedisModule_ReplicateVerbatim(ctx);
@@ -435,7 +435,7 @@ int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   tso->init_timestamp = interval_timestamp(RedisModule_StringPtrLen(argv[2], NULL),
       argc == 4 ? (char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL, tso->timefmt);
 
-  RedisModule_ReplyWithLongLong(ctx,tso->len);
+  RedisModule_ReplyWithSimpleString(ctx, "OK");
 
   return REDISMODULE_OK;
 }
@@ -449,13 +449,13 @@ int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
   RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
 
-  int type = RedisModule_KeyType(key);
-  if (type == REDISMODULE_KEYTYPE_EMPTY)
+  if (RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_EMPTY)
     return RedisModule_ReplyWithError(ctx,"Key doesn't exist");
 
   if (RedisModule_ModuleTypeGetType(key) != TSType)
     return RedisModule_ReplyWithError(ctx,"Invalid key type");
 
+  char *op = (char*)RedisModule_StringPtrLen(argv[2], NULL);
   struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
 
   time_t timestamp = interval2timestamp(tso->interval, argc == 4 ? (char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL, tso->timefmt);
@@ -466,9 +466,15 @@ int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     return RedisModule_ReplyWithError(ctx,"ERR invalid value: timestamp not exist");
   }
 
-  RedisModule_ReplyWithArray(ctx, 2);
-  RedisModule_ReplyWithDouble(ctx,tso->entry[idx].avg);
-  RedisModule_ReplyWithLongLong(ctx,tso->entry[idx].count);
+  TSEntry *e = &tso->entry[idx];
+  if (!strcmp(op, AVG))
+    RedisModule_ReplyWithDouble(ctx, e->avg);
+  else if (!strcmp(op, SUM))
+    RedisModule_ReplyWithDouble(ctx, e->avg * e->count);
+  else if (!strcmp(op, COUNT))
+    RedisModule_ReplyWithLongLong(ctx, e->count);
+  else
+    return RedisModule_ReplyWithError(ctx,"ERR invalid operation: must be one of avg, sum, count");
 
   return REDISMODULE_OK;
 }
