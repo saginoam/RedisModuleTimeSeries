@@ -1,26 +1,30 @@
 #include "timeseries.h"
 
+// TODO API:
+//   Get Range
 // TODO README:
 //   Examples
+//   Script for generating many entries
 //   Elasticsearch compare
+//   Missing features
 // TODO Features:
 //   Expiration
 //   interval duration. i.e '10 minute'
 //   keep original
 //   interval should be per field, not global
+//   pagination
 // TODO Redis questions:
-//   memory leak
-//   editing redis module sdk
-//   using int/float as has key in api
-//   redis-cli support for multi line
-//   redis-cli support unescaped strings. i.e '{ "field": "val" }' instead of '{ \"field\": \"val\" }'
+//   Persistency and load from disk
 // TODO Testing:
+//   All 3 new APIs
 //   Verify all keys exist
 //   Verify all fields exist
 //   Verify keep original
 // TODO Usability
-//   Persistency
+//   Command line help for api
 //   Last inserted timestamp/offset, so client can know from where to begin
+// TODO Coding
+//   Reorder functions
 
 
 char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, MONTH, YEAR};
@@ -444,7 +448,7 @@ int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   RedisModule_AutoMemory(ctx);
 
-  if (argc < 3 || argc > 4)
+  if (argc < 3 || argc > 5)
     return RedisModule_WrongArity(ctx);
 
   RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
@@ -458,23 +462,40 @@ int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   char *op = (char*)RedisModule_StringPtrLen(argv[2], NULL);
   struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
 
-  time_t timestamp = interval2timestamp(tso->interval, argc == 4 ? (char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL, tso->timefmt);
+  const char *timestamp = (argc > 3) ? (char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL;
+  //time_t timestamp = interval2timestamp(tso->interval, argc == 4 ? (char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL, tso->timefmt);
 
-  size_t idx = idx_timestamp(tso->init_timestamp, timestamp, tso->interval);
+  size_t from = idx_timestamp(tso->init_timestamp,
+                              interval2timestamp(tso->interval, timestamp, tso->timefmt),
+                              tso->interval);
 
-  if (tso->len <= idx) {
+  size_t to = (argc < 5) ? from :
+              idx_timestamp(tso->init_timestamp,
+                            interval2timestamp(tso->interval, (char*)RedisModule_StringPtrLen(argv[4], NULL),
+                                               tso->timefmt),
+                            tso->interval);
+
+  if (tso->len <= to)
+    to = tso->len - 1;
+
+  if (tso->len <= from)
     return RedisModule_ReplyWithError(ctx,"ERR invalid value: timestamp not exist");
-  }
 
-  TSEntry *e = &tso->entry[idx];
-  if (!strcmp(op, AVG))
-    RedisModule_ReplyWithDouble(ctx, e->avg);
-  else if (!strcmp(op, SUM))
-    RedisModule_ReplyWithDouble(ctx, e->avg * e->count);
-  else if (!strcmp(op, COUNT))
-    RedisModule_ReplyWithLongLong(ctx, e->count);
-  else
-    return RedisModule_ReplyWithError(ctx,"ERR invalid operation: must be one of avg, sum, count");
+  if (to < from)
+    return RedisModule_ReplyWithError(ctx,"ERR invalid range: end before start");
+
+  RedisModule_ReplyWithArray(ctx,to - from + 1);
+  for (size_t i = from; i <= to; i++) {
+    TSEntry *e = &tso->entry[i];
+    if (!strcmp(op, AVG))
+      RedisModule_ReplyWithDouble(ctx, e->avg);
+    else if (!strcmp(op, SUM))
+      RedisModule_ReplyWithDouble(ctx, e->avg * e->count);
+    else if (!strcmp(op, COUNT))
+      RedisModule_ReplyWithLongLong(ctx, e->count);
+    else
+      return RedisModule_ReplyWithError(ctx,"ERR invalid operation: must be one of avg, sum, count");
+  }
 
   return REDISMODULE_OK;
 }
