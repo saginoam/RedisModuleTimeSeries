@@ -23,6 +23,14 @@ def info():
     account
     '''
 
+def delete_all():
+    try:
+        es.indices.delete(tskey)
+    except:
+        pass
+    for key in client.execute_command('KEYS', tskey + "*"):
+        client.execute_command('DEL', key)
+
 def add_redis_entry(i, day, hour):
     timestamp = "2016:01:%.2d %.2d:00:00" % (day, hour)
     user_id = "user_id_%d" % (i)
@@ -36,14 +44,13 @@ def add_redis_entry(i, day, hour):
             "email": "username%d@timeseries.com" % (i),
             "account": "standard"
         })
-        client.execute_command('TS.CREATE', key + "_storage_used", "day", "2016:01:01 00:00:00")
-        client.execute_command('TS.CREATE', key + "_pages_visited", "day", "2016:01:01 00:00:00")
-        client.execute_command('TS.CREATE', key + "_usage_time", "day", "2016:01:01 00:00:00")
+        client.execute_command('TS.CREATE', key + "_storage_used", "hour", "2016:01:01 00:00:00")
+        client.execute_command('TS.CREATE', key + "_pages_visited", "hour", "2016:01:01 00:00:00")
+        client.execute_command('TS.CREATE', key + "_usage_time", "hour", "2016:01:01 00:00:00")
 
     client.execute_command('TS.INSERT', key + "_storage_used", str(i * 1.1), timestamp)
     client.execute_command('TS.INSERT', key + "_pages_visited", str(i), timestamp)
     client.execute_command('TS.INSERT', key + "_usage_time", str(i * 0.2), timestamp)
-
 
 
 def add_es_entry(i, day, hour):
@@ -75,16 +82,53 @@ def add_es_entry(i, day, hour):
         }
     })
 
+def sizeof_fmt(num, suffix='b'):
+    for unit in ['','K','M','G','T','P','E','Z']:
+        if abs(num) < 1024.0:
+            return "%3.1f %s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f%s%s" % (num, 'Yi', suffix)
 
-def add_entry(i, day, hour):
-    add_redis_entry(i, day, hour)
-    #add_es_entry(i, day, hour)
+def get_redis_size():
+    redis_size = 0
+    for key in client.execute_command('KEYS', tskey + "*"):
+        redis_size += client.execute_command('DEBUG OBJECT', key)['serializedlength']
+    return "size: %s (%d)" % (sizeof_fmt(redis_size), redis_size)
 
-#add_redis_entry(2, 30, 1)
-start = datetime.now()
-for i in range(1, 100):
-    for day in range(1, 31):
-        for hour in range(0, 24):
-            add_entry(i, day, hour)
-end = datetime.now()
-print(end-start)
+def get_es_size():
+    ind = 0
+    try:
+        ret = es.indices.stats(tskey)
+        ind = ret['_all']['total']['store']['size_in_bytes']
+    except:
+        pass
+    return "size: %s (%d)" % (sizeof_fmt(ind), ind)
+
+def run_for_all(size, cb, msg, size_cb):
+    start = datetime.now().replace(microsecond=0)
+    for i in range(1, size+1):
+        for day in range(1, 31):
+            for hour in range(0, 24):
+                cb(i, day, hour)
+    end = datetime.now().replace(microsecond=0)
+    print msg, (end-start), size_cb()
+
+def do_benchmark(size):
+    print "delete data"
+    delete_all()
+    print "----------------------------------------"
+    print "benchmark size: ", size
+    run_for_all(size, add_redis_entry, "redis", get_redis_size)
+    run_for_all(size, add_es_entry, "es   ", get_es_size)
+    print "----------------------------------------"
+
+do_benchmark(1)
+do_benchmark(10)
+do_benchmark(100)
+# do_benchmark(1000)
+
+# TODO Use multiple entries for each bucket (currently its 1)
+# TODO benchmark get api
+# TODO Use bulk api
+# TODO Compare also es 5.0 with painless script (should be much faster)
+# TODO Compare also with timeseries over redis hset and not my own custom type (memory usage much higher)
