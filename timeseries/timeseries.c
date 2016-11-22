@@ -278,18 +278,17 @@ typedef struct TSObject {
   size_t len;
   time_t init_timestamp;
   Interval interval;
-  const char *timefmt;
+  char *timefmt;
 }TSObject;
 
 struct TSObject *createTSObject(void) {
   struct TSObject *o;
-  o = RedisModule_Alloc(sizeof(*o));
-  o->entry = NULL;
-  o->len = 0;
+  o = RedisModule_Calloc(1, sizeof(*o));
   return o;
 }
 
 void TSReleaseObject(struct TSObject *o) {
+  RedisModule_Free(o->timefmt);
   RedisModule_Free(o->entry);
   RedisModule_Free(o);
 }
@@ -300,20 +299,38 @@ void *TSRdbLoad(RedisModuleIO *rdb, int encver) {
     return NULL;
   }
 
-  struct TSObject *tso = createTSObject();
-  tso->len = RedisModule_LoadUnsigned(rdb);
-  size_t len = 0;
-  if (tso->len)
-    tso->entry = (TSEntry *)RedisModule_LoadStringBuffer(rdb, &len);
+  struct TSObject *o = createTSObject();
 
-  return tso;
+  o->init_timestamp = RedisModule_LoadUnsigned(rdb);
+  o->interval = RedisModule_LoadUnsigned(rdb);
+
+  size_t timefmt_length = RedisModule_LoadUnsigned(rdb);
+  size_t len = 0;
+  if (timefmt_length)
+	  o->entry = (TSEntry *)RedisModule_LoadStringBuffer(rdb, &len);
+
+
+  o->len = RedisModule_LoadUnsigned(rdb);
+  if (o->len)
+    o->entry = (TSEntry *)RedisModule_LoadStringBuffer(rdb, &len);
+
+  return o;
 }
 
 void TSRdbSave(RedisModuleIO *rdb, void *value) {
-  struct TSObject *tso = value;
-  RedisModule_SaveUnsigned(rdb,tso->len);
-  if (tso->len)
-    RedisModule_SaveStringBuffer(rdb,(const char *)tso->entry,tso->len * sizeof(double));
+  struct TSObject *o = value;
+
+  RedisModule_SaveUnsigned(rdb, o->init_timestamp);
+  RedisModule_SaveUnsigned(rdb, o->interval);
+
+  size_t timefmt_length = strlen(o->timefmt);
+  RedisModule_SaveUnsigned(rdb, timefmt_length);
+  if (timefmt_length)
+	  RedisModule_SaveStringBuffer(rdb,(const char *)o->timefmt, timefmt_length + 1);
+
+  RedisModule_SaveUnsigned(rdb, o->len);
+  if (o->len)
+    RedisModule_SaveStringBuffer(rdb,(const char *)o->entry, o->len * sizeof(TSEntry));
 }
 
 void TSAofRewrite(RedisModuleIO *aof, RedisModuleString *key, void *value) {
