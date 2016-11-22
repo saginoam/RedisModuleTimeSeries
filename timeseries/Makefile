@@ -23,7 +23,7 @@ CC=gcc
 
 all: timeseries.so
 
-timeseries.so: timeseries.o timeseries_test.o
+timeseries.so: timeseries.o ts_entry.o timeseries_test.o
 	$(LD) -o $@ $^ $(SHOBJ_LDFLAGS) $(LIBS) -L$(RMUTIL_LIBDIR) -lrmutil -L../cJSON -lcjson -lc
 
 clean:
