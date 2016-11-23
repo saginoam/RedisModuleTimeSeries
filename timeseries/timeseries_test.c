@@ -85,9 +85,9 @@ int testTSAggData(RedisModuleCtx *ctx) {
 
 	// Remove old data (previous tests)
 	RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", aggdatakey));
-	RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.addagg:userId1:accountId1:storageUsed:sum"));
-	RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.addagg:userId1:accountId1:trafficUsed:avg"));
-	RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.addagg:userId1:accountId1:pagesVisited:sum"));
+	RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.doc:userId1:accountId1:storageUsed:sum"));
+	RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.doc:userId1:accountId1:trafficUsed:avg"));
+	RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.doc:userId1:accountId1:pagesVisited:sum"));
 
 	// Validate aggregation type
 	confJson = testConfInvalidAvg(confJson);
