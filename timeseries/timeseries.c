@@ -127,35 +127,31 @@ time_t interval_timestamp(const char *interval, const char *timestamp, const cha
   return mktime(&st);
 }
 
-int TSCreateDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-  void cleanup () {}
-  if (argc != 3) {
-    return RedisModule_WrongArity(ctx);
-  }
-  RedisModule_AutoMemory(ctx);
+Interval str2interval(const char *interval) {
+  if (!strcmp(SECOND, interval)) return second;
+  if (!strcmp(MINUTE, interval)) return minute;
+  if (!strcmp(HOUR, interval)) return hour;
+  if (!strcmp(DAY, interval)) return day;
+  if (!strcmp(MONTH, interval)) return month;
+  if (!strcmp(YEAR, interval)) return year;
 
-  const char *name, *jsonErr, *conf;
-  cJSON *json;
-
-  name = RedisModule_StringPtrLen(argv[1], NULL);
-  conf = RedisModule_StringPtrLen(argv[2], NULL);
-  if (!(json=cJSON_Parse(conf)))
-    return RedisModule_ReplyWithError(ctx, "Invalid json");
-
-  if ((jsonErr = ValidateTS(json, NULL))) {
-    cJSON_Delete(json);
-    return RedisModule_ReplyWithError(ctx, jsonErr);
-  }
-
-  RedisModuleCallReply *srep = RedisModule_Call(ctx, "HSET", "ccc", "ts.conf", name, conf);
-  // Free the json before assert, otherwise invalid input will cause memory leak of the json
-  cJSON_Delete(json);
-  RMUTIL_ASSERT_NOERROR(srep, cleanup);
-
-  RedisModule_ReplyWithSimpleString(ctx, "OK");
-  return REDISMODULE_OK;
+  return none;
 }
 
+const char *interval2str(Interval interval) {
+  if (interval == second) return SECOND;
+  if (interval == minute) return MINUTE;
+  if (interval == hour) return HOUR;
+  if (interval == day) return DAY;
+  if (interval == month) return MONTH;
+  if (interval == year) return YEAR;
+
+  return none;
+}
+
+size_t idx_timestamp(time_t init_timestamp, size_t cur_timestamp, Interval interval) {
+  return difftime(cur_timestamp, init_timestamp) / interval;
+}
 
 /* ========================== "timeseries" type methods ======================= */
 
@@ -224,8 +220,34 @@ void TSFree(void *value) {
   TSReleaseObject(value);
 }
 
-size_t idx_timestamp(time_t init_timestamp, size_t cur_timestamp, Interval interval) {
-  return difftime(cur_timestamp, init_timestamp) / interval;
+/* =========================== time series api =====================================*/
+int TSCreateDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+  void cleanup () {}
+  if (argc != 3) {
+    return RedisModule_WrongArity(ctx);
+  }
+  RedisModule_AutoMemory(ctx);
+
+  const char *name, *jsonErr, *conf;
+  cJSON *json;
+
+  name = RedisModule_StringPtrLen(argv[1], NULL);
+  conf = RedisModule_StringPtrLen(argv[2], NULL);
+  if (!(json=cJSON_Parse(conf)))
+    return RedisModule_ReplyWithError(ctx, "Invalid json");
+
+  if ((jsonErr = ValidateTS(json, NULL))) {
+    cJSON_Delete(json);
+    return RedisModule_ReplyWithError(ctx, jsonErr);
+  }
+
+  RedisModuleCallReply *srep = RedisModule_Call(ctx, "HSET", "ccc", "ts.conf", name, conf);
+  // Free the json before assert, otherwise invalid input will cause memory leak of the json
+  cJSON_Delete(json);
+  RMUTIL_ASSERT_NOERROR(srep, cleanup);
+
+  RedisModule_ReplyWithSimpleString(ctx, "OK");
+  return REDISMODULE_OK;
 }
 
 /* Add new item to array
@@ -285,28 +307,6 @@ int TSInsert(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     return RedisModule_ReplyWithError(ctx,"ERR invalid value: must be a double");
 
   return ts_insert(ctx, argv[1], value, argc == 4 ? (char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL);
-}
-
-Interval str2interval(const char *interval) {
-  if (!strcmp(SECOND, interval)) return second;
-  if (!strcmp(MINUTE, interval)) return minute;
-  if (!strcmp(HOUR, interval)) return hour;
-  if (!strcmp(DAY, interval)) return day;
-  if (!strcmp(MONTH, interval)) return month;
-  if (!strcmp(YEAR, interval)) return year;
-
-  return none;
-}
-
-const char *interval2str(Interval interval) {
-  if (interval == second) return SECOND;
-  if (interval == minute) return MINUTE;
-  if (interval == hour) return HOUR;
-  if (interval == day) return DAY;
-  if (interval == month) return MONTH;
-  if (interval == year) return YEAR;
-
-  return none;
 }
 
 int ts_create(RedisModuleCtx *ctx, RedisModuleString *name, const char *interval, const char *timefmt, const char *timestamp) {
