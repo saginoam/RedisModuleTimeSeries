@@ -37,10 +37,10 @@ def delete_all(es):
         pass
     for key in client.execute_command('KEYS', tskey + "*"):
         client.execute_command('DEL', key)
-    for key in client.execute_command('KEYS', hsetkey + "*"):
-        client.execute_command('DEL', key)
-    for key in client.execute_command('KEYS', listkey + "*"):
-        client.execute_command('DEL', key)
+    # for key in client.execute_command('KEYS', hsetkey + "*"):
+    #     client.execute_command('DEL', key)
+    # for key in client.execute_command('KEYS', listkey + "*"):
+    #     client.execute_command('DEL', key)
 
 
 def get_timestamp(day, hour, minute):
@@ -213,14 +213,14 @@ def do_benchmark(size):
     print "benchmark size: ", size
     run_for_all(size, add_redis_entry,  "redis", get_redis_size)
     #run_for_all(size, add_redis_hset_entry,  "hset ", get_redis_hset_size)
-    run_for_all(size, add_redis_list_entry,  "list ", get_redis_list_size)
+    #run_for_all(size, add_redis_list_entry,  "list ", get_redis_list_size)
     # run_for_all(size, add_es_entry,     "es1_7", get_es_size_1_7)
     #run_for_all(size, add_es_entry_5_0, "es5_0", get_es_size_5_0)
     print "----------------------------------------"
 
 
 do_benchmark(1)
-do_benchmark(10)
+do_benchmark(3)
 #do_benchmark(100)
 #do_benchmark(1000)
 
