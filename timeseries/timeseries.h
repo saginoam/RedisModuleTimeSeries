@@ -101,6 +101,4 @@ const char *interval2str(Interval interval);
 // Test function
 int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
 
-#include "ts_entry.h"
-
 #endif

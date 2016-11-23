@@ -208,7 +208,7 @@ def run_for_all(size, cb, msg, size_cb):
 def do_benchmark(size):
     print "delete data"
     delete_all(es_1_7)
-    #delete_all(es_5_0)
+    delete_all(es_5_0)
     print "----------------------------------------"
     print "benchmark size: ", size
     run_for_all(size, add_redis_entry,  "redis", get_redis_size)
@@ -220,9 +220,9 @@ def do_benchmark(size):
 
 
 do_benchmark(1)
-# do_benchmark(10)
-# do_benchmark(100)
-# do_benchmark(1000)
+do_benchmark(10)
+#do_benchmark(100)
+#do_benchmark(1000)
 
 # TODO benchmark get api
 # TODO Use bulk api
