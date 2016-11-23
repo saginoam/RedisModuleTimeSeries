@@ -127,7 +127,7 @@ time_t interval_timestamp(const char *interval, const char *timestamp, const cha
   return mktime(&st);
 }
 
-int TSConf(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+int TSCreateDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   void cleanup () {}
   if (argc != 3) {
     return RedisModule_WrongArity(ctx);
@@ -339,7 +339,7 @@ int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     DEFAULT_TIMEFMT, argc == 4 ? RedisModule_StringPtrLen(argv[3], NULL) : NULL);
 }
 
-int TSAddAgg(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+int TSInsertDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
   cJSON *conf = NULL;
   cJSON *data = NULL;
   RedisModuleCallReply *confRep = NULL;
@@ -490,13 +490,13 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
   if (TSType == NULL) return REDISMODULE_ERR;
 
   // Register timeseries api
-  RMUtil_RegisterWriteCmd(ctx, "ts.conf", TSConf);
-
-  RMUtil_RegisterWriteCmd(ctx, "ts.addagg", TSAddAgg);
-
+  RMUtil_RegisterWriteCmd(ctx, "ts.create", TSCreate);
   RMUtil_RegisterWriteCmd(ctx, "ts.insert", TSInsert);
   RMUtil_RegisterWriteCmd(ctx, "ts.get", TSGet);
-  RMUtil_RegisterWriteCmd(ctx, "ts.create", TSCreate);
+
+  // Register timeseries doc api
+  RMUtil_RegisterWriteCmd(ctx, "ts.createdoc", TSCreateDoc);
+  RMUtil_RegisterWriteCmd(ctx, "ts.insertdoc", TSInsertDoc);
 
   // register the unit test
   RMUtil_RegisterWriteCmd(ctx, "ts.test", TestModule);

@@ -91,31 +91,31 @@ int testTSAggData(RedisModuleCtx *ctx) {
 
     // Validate aggregation type
     confJson = testConfInvalidAvg(confJson);
-    RMCALL(r, RedisModule_Call(ctx, "ts.conf", "cc", aggdatakey, cJSON_Print_static(confJson)));
+    RMCALL(r, RedisModule_Call(ctx, "ts.createdoc", "cc", aggdatakey, cJSON_Print_static(confJson)));
     RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
     RMUtil_Assert(
             !strcmp(RedisModule_CallReplyStringPtr(r, NULL), "Invalid json: aggregation is not one of: sum, avg\r\n"));
 
     // Validate interval values
     confJson = testConfInvalidInterval(confJson);
-    RMCALL(r, RedisModule_Call(ctx, "ts.conf", "cc", aggdatakey, cJSON_Print_static(confJson)));
+    RMCALL(r, RedisModule_Call(ctx, "ts.createdoc", "cc", aggdatakey, cJSON_Print_static(confJson)));
     RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
     RMUtil_Assert(!strcmp(RedisModule_CallReplyStringPtr(r, NULL),
-                          "Invalid json: interval is not one of: second, minute, hour, day, month, year\r\n"));
+        "Invalid json: interval is not one of: second, minute, hour, day, month, year\r\n"));
 
     // Validate add before conf fails
-    RMCALL(r, RedisModule_Call(ctx, "ts.addagg", "cc", aggdatakey, cJSON_Print_static(data1)));
+    RMCALL(r, RedisModule_Call(ctx, "ts.insertdoc", "cc", aggdatakey, cJSON_Print_static(data1)));
     RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
 
     // Add conf
     confJson = testConf(confJson);
-    RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.conf", "cc", aggdatakey, cJSON_Print_static(confJson)));
+    RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.createdoc", "cc", aggdatakey, cJSON_Print_static(confJson)));
 
     // 1st Add succeed
-    RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.addagg", "cc", aggdatakey, cJSON_Print_static(data1)));
-    RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.addagg", "cc", aggdatakey, cJSON_Print_static(data2)));
-    RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.addagg", "cc", aggdatakey, cJSON_Print_static(data1)));
-    RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.addagg", "cc", aggdatakey, cJSON_Print_static(data1)));
+    RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.insertdoc", "cc", aggdatakey, cJSON_Print_static(data1)));
+    RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.insertdoc", "cc", aggdatakey, cJSON_Print_static(data2)));
+    RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.insertdoc", "cc", aggdatakey, cJSON_Print_static(data1)));
+    RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.insertdoc", "cc", aggdatakey, cJSON_Print_static(data1)));
 
     // Verify count is 1
 //    RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:userId1:accountId1:pagesVisited:sum", count_key));

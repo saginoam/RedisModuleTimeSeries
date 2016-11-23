@@ -3,8 +3,6 @@ from elasticsearch import Elasticsearch
 import redis
 
 tskey = "pytsbench"
-hsetkey = "hsetbench"
-listkey = "listbench"
 es_1_7 = Elasticsearch(["localhost:9200"])
 es_5_0 = Elasticsearch(["localhost:9222"])
 client = redis.Redis()
@@ -37,57 +35,9 @@ def delete_all(es):
         pass
     for key in client.execute_command('KEYS', tskey + "*"):
         client.execute_command('DEL', key)
-    # for key in client.execute_command('KEYS', hsetkey + "*"):
-    #     client.execute_command('DEL', key)
-    # for key in client.execute_command('KEYS', listkey + "*"):
-    #     client.execute_command('DEL', key)
-
 
 def get_timestamp(day, hour, minute):
     return "2016:01:%.2d %.2d:%.2d:00" % (day, hour, minute)
-
-def add_redis_list_entry(i, day, hour):
-    user_id = "user_id_%d" % (i)
-    dev_id = "device_id_%d" % (i)
-    key = "%s_%s_%s" % (listkey, user_id, dev_id)
-    if day == 1 and hour == 0:
-        client.hmset(key, {
-            "user_id": user_id,
-            "device_id": dev_id,
-            "username": "username%d" % (i),
-            "email": "username%d@timeseries.com" % (i),
-            "account": "standard"
-        })
-
-    client.execute_command('RPUSH', key + "_storage_used", str(i * 1.1))
-    client.execute_command('RPUSH', key + "_storage_used", "1")
-    client.execute_command('RPUSH', key + "_pages_visited", str(i))
-    client.execute_command('RPUSH', key + "_pages_visited", "1")
-    client.execute_command('RPUSH', key + "_usage_time", str(i * 0.2))
-    client.execute_command('RPUSH', key + "_usage_time", "1")
-
-def add_redis_hset_entry(i, day, hour):
-    user_id = "user_id_%d" % (i)
-    dev_id = "device_id_%d" % (i)
-    key = "%s_%s_%s" % (hsetkey, user_id, dev_id)
-    if day == 1 and hour == 0:
-        client.hmset(key, {
-            "user_id": user_id,
-            "device_id": dev_id,
-            "username": "username%d" % (i),
-            "email": "username%d@timeseries.com" % (i),
-            "account": "standard"
-        })
-
-    timestamp = get_timestamp(day, hour, 0)
-
-    for e in range(1, num_entries + 1):
-        client.execute_command('HINCRBYFLOAT', key + "_storage_used", timestamp, str(i * 1.1 * e))
-        client.execute_command('HINCRBY', key + "_storage_used", timestamp + "_count", "1")
-        client.execute_command('HINCRBYFLOAT', key + "_pages_visited", timestamp, str(i * e))
-        client.execute_command('HINCRBY', key + "_pages_visited", timestamp + "_count", "1")
-        client.execute_command('HINCRBYFLOAT', key + "_usage_time", timestamp, str(i * 0.2 * e))
-        client.execute_command('HINCRBY', key + "_usage_time", timestamp + "_count", "1")
 
 def add_redis_entry(i, day, hour):
     timestamp = get_timestamp(1, 0, 0)
