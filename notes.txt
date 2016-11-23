@@ -1,0 +1,3 @@
+make clean all && valgrind --suppressions=/mnt/disk/training/redis/redis.my/src/valgrind.sup   /mnt/disk/training/redis/redis.my/src/redis-server --loadmodule ./timeseries.so
+
+gdb -ex=r --args  /mnt/disk/training/redis/redis.my/src/redis-server --loadmodule ./timeseries.so
