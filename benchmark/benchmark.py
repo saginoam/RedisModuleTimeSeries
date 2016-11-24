@@ -124,12 +124,6 @@ def get_redis_size(thekey = tskey):
         redis_size += client.execute_command('DEBUG OBJECT', key)['serializedlength']
     return "size: %s (%d)" % (sizeof_fmt(redis_size), redis_size)
 
-def get_redis_hset_size():
-    return get_redis_size(hsetkey)
-
-def get_redis_list_size():
-    return get_redis_size(listkey)
-
 def get_es_size(es):
     ind = 0
     try:

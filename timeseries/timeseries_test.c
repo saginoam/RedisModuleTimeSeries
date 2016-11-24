@@ -250,7 +250,7 @@ int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
     RMUtil_Test(testTimestampIdx);
 
-    RMUtil_Test(testTSAggData);
+    //RMUtil_Test(testTSAggData);
 
     RedisModule_ReplyWithSimpleString(ctx, "PASS");
     return REDISMODULE_OK;

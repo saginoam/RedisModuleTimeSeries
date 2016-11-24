@@ -339,15 +339,47 @@ int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
             DEFAULT_TIMEFMT, argc == 4 ? RedisModule_StringPtrLen(argv[3], NULL) : NULL);
 }
 
+char *doc_key_prefix(cJSON *conf, cJSON *data)
+{
+	static char key_prefix[1000] = "ts.doc:";
+	cJSON *key_fields = cJSON_GetObjectItem(conf, "key_fields");
+	for (int i=0; i < cJSON_GetArraySize(key_fields); i++) {
+		cJSON *k = cJSON_GetArrayItem(key_fields, i);
+		cJSON *d = cJSON_GetObjectItem(data, k->valuestring);
+		strcat(key_prefix, d->valuestring);
+		strcat(key_prefix, ":");
+	}
+	return key_prefix;
+}
+
+char *doc_agg_key(char *key_prefix, cJSON *ts_field){
+	static char agg_key[1000];
+	cJSON *field = cJSON_GetObjectItem(ts_field, "field");
+	cJSON *aggregation = cJSON_GetObjectItem(ts_field, "aggregation");
+	sprintf(agg_key, "%s%s:%s", key_prefix, field->valuestring, aggregation->valuestring);
+	return agg_key;
+}
+
+double agg_value(cJSON *data, cJSON *ts_field) {
+	cJSON *field = cJSON_GetObjectItem(ts_field, "field");
+	return cJSON_GetObjectItem(data, field->valuestring)->valuedouble;
+}
+
 int TSInsertDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     cJSON *conf = NULL;
     cJSON *data = NULL;
     RedisModuleCallReply *confRep = NULL;
+    const char *jsonErr;
 
     void cleanup(void) {
         cJSON_Delete(data);
         cJSON_Delete(conf);
         RedisModule_FreeCallReply(confRep);
+    }
+
+    int exit_status(int status) {
+    	cleanup();
+    	return status;
     }
 
     if (argc != 3) {
@@ -360,47 +392,27 @@ int TSInsertDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     RMUTIL_ASSERT_NONULL(confRep, RedisModule_StringPtrLen(argv[1], NULL), cleanup);
 
     // Time series entry conf previously stored for 'name'
-
-    if (!(conf=cJSON_Parse(RedisModule_CallReplyStringPtr(confRep, NULL)))) {
-        cleanup();
-        return RedisModule_ReplyWithError(ctx, "Something is wrong. Failed to parse ts conf");
-    }
+    if (!(conf=cJSON_Parse(RedisModule_CallReplyStringPtr(confRep, NULL))))
+        return exit_status(RedisModule_ReplyWithError(ctx, "Something is wrong. Failed to parse ts conf"));
 
     // Time series entry data
-    if (!(data=cJSON_Parse(RedisModule_StringPtrLen(argv[2], NULL)))) {
-        cleanup();
-        return RedisModule_ReplyWithError(ctx, "Invalid json");
-    }
+    if (!(data=cJSON_Parse(RedisModule_StringPtrLen(argv[2], NULL))))
+        return exit_status(RedisModule_ReplyWithError(ctx, "Invalid json"));
 
-    const char *jsonErr;
-    if ((jsonErr = ValidateTS(conf, data))) {
-        cleanup();
-        return RedisModule_ReplyWithError(ctx, jsonErr);
-    }
+    if ((jsonErr = ValidateTS(conf, data)))
+        return exit_status(RedisModule_ReplyWithError(ctx, jsonErr));
 
     // Create timestamp. Use a single timestamp for all entries, not to accidently use different entries in case
     // during the calculation the time has changed)
     long timestamp = interval_timestamp(cJSON_GetObjectItem(conf, "interval")->valuestring,
         cJSON_GetObjectString(data, "timestamp"), cJSON_GetObjectString(conf, "timeformat"));
 
-    char key_prefix[1000] = "ts.doc:";
-    cJSON *key_fields = cJSON_GetObjectItem(conf, "key_fields");
-    for (int i=0; i < cJSON_GetArraySize(key_fields); i++) {
-        cJSON *k = cJSON_GetArrayItem(key_fields, i);
-        cJSON *d = cJSON_GetObjectItem(data, k->valuestring);
-        strcat(key_prefix, d->valuestring);
-        strcat(key_prefix, ":");
-    }
+    char *key_prefix = doc_key_prefix(conf, data);
 
     cJSON *ts_fields = cJSON_GetObjectItem(conf, "ts_fields");
     for (int i=0; i < cJSON_GetArraySize(ts_fields); i++) {
-        char agg_key[1000];
-
-        cJSON *ts_field = cJSON_GetArrayItem(ts_fields, i);
-        cJSON *field = cJSON_GetObjectItem(ts_field, "field");
-        cJSON *aggregation = cJSON_GetObjectItem(ts_field, "aggregation");
-        sprintf(agg_key, "%s%s:%s", key_prefix, field->valuestring, aggregation->valuestring);
-        cJSON *datafield = cJSON_GetObjectItem(data, field->valuestring);
+        char *agg_key = doc_agg_key(key_prefix, cJSON_GetArrayItem(ts_fields, i));
+        double value = agg_value(data, cJSON_GetArrayItem(ts_fields, i));
 
         char timestamp_key[100];
         sprintf(timestamp_key, "%li", timestamp);
@@ -416,11 +428,10 @@ int TSInsertDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         RedisModule_CloseKey(key);
 
         //TODO check errors
-        ts_insert(ctx, strkey, datafield->valuedouble, cJSON_GetObjectString(data, "timestamp"));
+        ts_insert(ctx, strkey, value, cJSON_GetObjectString(data, "timestamp"));
     }
 
-    cleanup();
-    return RedisModule_ReplyWithSimpleString(ctx, "OK");
+    return exit_status(RedisModule_ReplyWithSimpleString(ctx, "OK"));
 }
 
 int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
@@ -453,12 +464,19 @@ int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         to = tso->len - 1;
 
     if (!strcmp(op, "info")) {
-        return RedisModule_ReplyWithString(ctx, RedisModule_CreateStringPrintf(ctx, "Start: %zu entries: %zu",
-                tso->init_timestamp, tso->len));
+        char timestr[64];
+        struct tm st;
+        gmtime_r(&tso->init_timestamp, &st);
+        strftime(timestr, 64, tso->timefmt, &st);
+        RedisModuleString *ret = RedisModule_CreateStringPrintf(ctx, "Start: %s entries: %zu", timestr, tso->len);
+        return RedisModule_ReplyWithString(ctx, ret);
     }
 
-    if (tso->len <= from)
-        return RedisModule_ReplyWithError(ctx,"ERR invalid value: timestamp not exist");
+    if (tso->len <= from) {
+        RedisModuleString *ret = RedisModule_CreateStringPrintf(ctx,
+             "ERR invalid value: timestamp not exist len: %zu from: %zu to: %zu", tso->len, from, to);
+        return RedisModule_ReplyWithError(ctx, RedisModule_StringPtrLen(ret, NULL));
+    }
 
     if (to < from)
         return RedisModule_ReplyWithError(ctx,"ERR invalid range: end before start");
@@ -483,7 +501,6 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
     // Register the timeseries module itself
     if (RedisModule_Init(ctx, "ts", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
-
 
     /* Name must be 9 chars... */
     TSType = RedisModule_CreateDataType(ctx,"timeserie",0,TSRdbLoad,TSRdbSave,TSAofRewrite,TSDigest,TSFree);
