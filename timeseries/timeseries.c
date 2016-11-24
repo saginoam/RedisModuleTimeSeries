@@ -25,9 +25,6 @@
 // TODO Usability
 //   Command line help for api
 //   Last inserted timestamp/offset, so client can know from where to begin
-// TODO Coding
-//   Reorder functions
-
 
 static char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, MONTH, YEAR};
 
@@ -53,47 +50,46 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
     int valid, sz, i, esz, j;
 
     // verify keep_original parameter
-    cJSON *keep_original = VALIDATE_KEY(conf, keep_original)
-          if (keep_original->type != cJSON_True && keep_original->type != cJSON_False)
-              return "Invalid json: keep_original is not a boolean";
+    cJSON *keep_original = VALIDATE_KEY(conf, keep_original);
+    if (keep_original->type != cJSON_True && keep_original->type != cJSON_False)
+        return "Invalid json: keep_original is not a boolean";
 
     // verify interval parameter
-    cJSON *interval = VALIDATE_ENUM(conf, interval, validIntervals, "second, minute, hour, day, month, year")
-
-          long timestamp = interval_timestamp(interval->valuestring, cJSON_GetObjectString(data, "timestamp"),
-                  cJSON_GetObjectString(conf, "timeformat"));
+    cJSON *interval = VALIDATE_ENUM(conf, interval, validIntervals, "second, minute, hour, day, month, year");
+    long timestamp = interval_timestamp(interval->valuestring, cJSON_GetObjectString(data, "timestamp"),
+        cJSON_GetObjectString(conf, "timeformat"));
     if (!timestamp)
         return "Invalid json: timestamp format and data mismatch";
 
     // verify key_fields
-    cJSON *key_fields = VALIDATE_ARRAY(conf, key_fields)
-          for (i=0; i < sz; i++) {
-              cJSON *k = cJSON_GetArrayItem(key_fields, i);
-              VALIDATE_STRING_TYPE(k);
-              if (data) {
-                  cJSON *tsfield = cJSON_GetObjectItem(data, k->valuestring);
-                  if (!tsfield)
-                      return "Invalid data: missing field";
-                  VALIDATE_STRING_TYPE(tsfield);
-              }
-          }
+    cJSON *key_fields = VALIDATE_ARRAY(conf, key_fields);
+    for (i=0; i < sz; i++) {
+    	cJSON *k = cJSON_GetArrayItem(key_fields, i);
+    	VALIDATE_STRING_TYPE(k);
+    	if (data) {
+    		cJSON *tsfield = cJSON_GetObjectItem(data, k->valuestring);
+    		if (!tsfield)
+    			return "Invalid data: missing field";
+    		VALIDATE_STRING_TYPE(tsfield);
+    	}
+    }
 
     // verify time series fields
-    cJSON *ts_fields = VALIDATE_ARRAY(conf, ts_fields)
-          for (i=0; i < sz; i++) {
-              cJSON *ts_field = cJSON_GetArrayItem(ts_fields, i);
-              if (ts_field->type != cJSON_Object)
-                  return "Invalid json: ts_field is not an object";
-              cJSON *field = VALIDATE_STRING(ts_field, field);
-              cJSON *aggregation = VALIDATE_ENUM(ts_field, aggregation, validAggs, "sum, avg");
-              if (data) {
-                  cJSON *tsfield = cJSON_GetObjectItem(data, field->valuestring);
-                  if (!tsfield)
-                      return "Invalid data: missing field";
-                  if (tsfield->type != cJSON_Number)
-                      return "Invalid data: agregation field is not a number";
-              }
-          }
+    cJSON *ts_fields = VALIDATE_ARRAY(conf, ts_fields);
+    for (i=0; i < sz; i++) {
+    	cJSON *ts_field = cJSON_GetArrayItem(ts_fields, i);
+    	if (ts_field->type != cJSON_Object)
+    		return "Invalid json: ts_field is not an object";
+    	cJSON *field = VALIDATE_STRING(ts_field, field);
+    	cJSON *aggregation = VALIDATE_ENUM(ts_field, aggregation, validAggs, "sum, avg");
+    	if (data) {
+    		cJSON *tsfield = cJSON_GetObjectItem(data, field->valuestring);
+    		if (!tsfield)
+    			return "Invalid data: missing field";
+    		if (tsfield->type != cJSON_Number)
+    			return "Invalid data: agregation field is not a number";
+    	}
+    }
 
     // All is good
     return NULL;
@@ -210,7 +206,7 @@ int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         return RedisModule_WrongArity(ctx);
 
     return ts_create(ctx, argv[1], RedisModule_StringPtrLen(argv[2], NULL),
-            DEFAULT_TIMEFMT, argc == 4 ? RedisModule_StringPtrLen(argv[3], NULL) : NULL);
+        DEFAULT_TIMEFMT, argc == 4 ? RedisModule_StringPtrLen(argv[3], NULL) : NULL);
 }
 
 int TSInsertDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
@@ -226,8 +222,8 @@ int TSInsertDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     }
 
     int exit_status(int status) {
-    	cleanup();
-    	return status;
+        cleanup();
+        return status;
     }
 
     if (argc != 3) {
@@ -300,29 +296,19 @@ int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
 
     const char *timestamp = (argc > 3) ? (char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL;
-    //time_t timestamp = interval2timestamp(tso->interval, argc == 4 ? (char*)RedisModule_StringPtrLen(argv[3], NULL) : NULL, tso->timefmt);
 
     size_t from = idx_timestamp(tso->init_timestamp,
-            interval2timestamp(tso->interval, timestamp, tso->timefmt), tso->interval);
+    	interval2timestamp(tso->interval, timestamp, tso->timefmt), tso->interval);
 
     size_t to = (argc < 5) ? from : idx_timestamp(tso->init_timestamp,
-            interval2timestamp(tso->interval, (char*)RedisModule_StringPtrLen(argv[4], NULL), tso->timefmt), tso->interval);
+        interval2timestamp(tso->interval, (char*)RedisModule_StringPtrLen(argv[4], NULL), tso->timefmt), tso->interval);
 
     if (tso->len <= to)
         to = tso->len - 1;
 
-    if (!strcmp(op, "info")) {
-        char timestr[64];
-        struct tm st;
-        gmtime_r(&tso->init_timestamp, &st);
-        strftime(timestr, 64, tso->timefmt, &st);
-        RedisModuleString *ret = RedisModule_CreateStringPrintf(ctx, "Start: %s entries: %zu", timestr, tso->len);
-        return RedisModule_ReplyWithString(ctx, ret);
-    }
-
     if (tso->len <= from) {
         RedisModuleString *ret = RedisModule_CreateStringPrintf(ctx,
-             "ERR invalid value: timestamp not exist len: %zu from: %zu to: %zu", tso->len, from, to);
+            "ERR invalid value: timestamp not exist len: %zu from: %zu to: %zu", tso->len, from, to);
         return RedisModule_ReplyWithError(ctx, RedisModule_StringPtrLen(ret, NULL));
     }
 
@@ -345,6 +331,38 @@ int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     return REDISMODULE_OK;
 }
 
+int TSInfo(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+    RedisModule_AutoMemory(ctx);
+    char starttimestr[64], endtimestr[64];
+
+    if (argc != 2)
+        return RedisModule_WrongArity(ctx);
+
+    RedisModuleKey *key = RedisModule_OpenKey(ctx, argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
+
+    if (RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_EMPTY)
+        return RedisModule_ReplyWithError(ctx,"Key doesn't exist");
+
+    if (RedisModule_ModuleTypeGetType(key) != TSType)
+        return RedisModule_ReplyWithError(ctx,"Invalid key type");
+
+    struct TSObject *tso = RedisModule_ModuleTypeGetValue(key);
+
+    size_t idx = tso->len - (tso->len ? 1 : 0); // Index is len - 1, unless no entries at all.
+    time_t endtime = tso->init_timestamp + tso->interval * idx;
+    struct tm st;
+
+    localtime_r(&tso->init_timestamp, &st);
+    strftime(starttimestr, 64, tso->timefmt, &st);
+    localtime_r(&endtime, &st);
+    strftime(endtimestr, 64, tso->timefmt, &st);
+
+    RedisModuleString *ret = RedisModule_CreateStringPrintf(ctx, "Start: %s End: %s len: %zu Interval: %s",
+        starttimestr, endtimestr, tso->len, interval2str(tso->interval));
+    return RedisModule_ReplyWithString(ctx, ret);
+
+}
+
 int RedisModule_OnLoad(RedisModuleCtx *ctx) {
     // Register the timeseries module itself
     if (RedisModule_Init(ctx, "ts", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
@@ -357,6 +375,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
     RMUtil_RegisterWriteCmd(ctx, "ts.create", TSCreate);
     RMUtil_RegisterWriteCmd(ctx, "ts.insert", TSInsert);
     RMUtil_RegisterWriteCmd(ctx, "ts.get", TSGet);
+    RMUtil_RegisterWriteCmd(ctx, "ts.info", TSInfo);
 
     // Register timeseries doc api
     RMUtil_RegisterWriteCmd(ctx, "ts.createdoc", TSCreateDoc);

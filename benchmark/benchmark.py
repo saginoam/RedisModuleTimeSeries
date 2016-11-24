@@ -154,7 +154,7 @@ def do_benchmark(size):
     delete_all(es_1_7)
     delete_all(es_5_0)
     print "----------------------------------------"
-    print "benchmark size: ", size
+    print "benchmark size: ", size, "number of calls: ", num_entries * size * 24 * 30
     run_for_all(size, add_redis_entry,  "redis", get_redis_size)
     #run_for_all(size, add_redis_hset_entry,  "hset ", get_redis_hset_size)
     #run_for_all(size, add_redis_list_entry,  "list ", get_redis_list_size)
@@ -164,7 +164,7 @@ def do_benchmark(size):
 
 
 do_benchmark(1)
-do_benchmark(3)
+do_benchmark(10)
 #do_benchmark(100)
 #do_benchmark(1000)
 
