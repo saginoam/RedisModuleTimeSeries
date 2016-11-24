@@ -31,13 +31,10 @@ static char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, MONTH, YEAR};
 static RedisModuleType *TSType;
 
 /**
- * TS.CONF <name> <config json>
+ * TS.CREATEDOC <name> <config json>
  * example TS.CONF user_report '{
  *   "key_fields": ["accountId", "deviceId"],
- *   "ts_fields": [
- *     { "field": "total_amount", "aggregation": "sum" },
- *     { "field": "page_views", "aggregation": "avg" }
- *   ],
+ *   "ts_fields": [ "total_amount", "page_views" ],
  *   "interval": "hour",
  *   "timeformat": "%Y:%m:%d %H:%M:%S"
  *   }'
