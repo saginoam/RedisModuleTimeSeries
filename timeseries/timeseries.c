@@ -29,10 +29,11 @@
 //   Reorder functions
 
 
-char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, MONTH, YEAR};
+static char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, MONTH, YEAR};
 
-char *validAggs[] = {SUM, AVG};
+static char *validAggs[] = {SUM, AVG};
 
+static RedisModuleType *TSType;
 
 /**
  * TS.CONF <name> <config json>
@@ -97,8 +98,6 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
     // All is good
     return NULL;
 }
-
-static RedisModuleType *TSType;
 
 int TSCreateDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     void cleanup () {}
@@ -172,7 +171,6 @@ int ts_insert(RedisModuleCtx *ctx, RedisModuleString *name, double value, char *
     //RedisModule_ReplicateVerbatim(ctx);
 
     return REDISMODULE_OK;
-
 }
 
 int TSInsert(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
