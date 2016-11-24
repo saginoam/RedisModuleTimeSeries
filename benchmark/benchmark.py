@@ -164,7 +164,7 @@ def do_benchmark(size):
 
 
 do_benchmark(1)
-do_benchmark(10)
+do_benchmark(2)
 #do_benchmark(100)
 #do_benchmark(1000)
 

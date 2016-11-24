@@ -41,18 +41,12 @@ static RedisModuleType *TSType;
  *     { "field": "page_views", "aggregation": "avg" }
  *   ],
  *   "interval": "hour",
- *   "keep_original": false,
  *   "timeformat": "%Y:%m:%d %H:%M:%S"
  *   }'
  *
  * */
 char *ValidateTS(cJSON *conf, cJSON *data) {
     int valid, sz, i, esz, j;
-
-    // verify keep_original parameter
-    cJSON *keep_original = VALIDATE_KEY(conf, keep_original);
-    if (keep_original->type != cJSON_True && keep_original->type != cJSON_False)
-        return "Invalid json: keep_original is not a boolean";
 
     // verify interval parameter
     cJSON *interval = VALIDATE_ENUM(conf, interval, validIntervals, "second, minute, hour, day, month, year");
