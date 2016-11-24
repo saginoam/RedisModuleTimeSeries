@@ -1,4 +1,5 @@
 #include "timeseries.h"
+#include "ts_entry.h"
 
 // TODO API:
 //   Get Range
@@ -153,74 +154,9 @@ size_t idx_timestamp(time_t init_timestamp, size_t cur_timestamp, Interval inter
     return difftime(cur_timestamp, init_timestamp) / interval;
 }
 
-/* ========================== "timeseries" type methods ======================= */
 
-static RedisModuleType *TSType; //For now its just an array
+static RedisModuleType *TSType;
 
-typedef struct TSEntry {
-    unsigned short count;
-    double avg;
-}TSEntry;
-
-typedef struct TSObject {
-    TSEntry *entry;
-    size_t len;
-    time_t init_timestamp;
-    Interval interval;
-    const char *timefmt;
-}TSObject;
-
-struct TSObject *createTSObject(void) {
-    struct TSObject *o;
-    o = RedisModule_Alloc(sizeof(*o));
-    o->entry = NULL;
-    o->len = 0;
-    return o;
-}
-
-void TSReleaseObject(struct TSObject *o) {
-    RedisModule_Free(o->entry);
-    RedisModule_Free(o);
-}
-
-void *TSRdbLoad(RedisModuleIO *rdb, int encver) {
-    if (encver != 0) {
-        /* RedisModule_Log("warning","Can't load data with version %d", encver);*/
-        return NULL;
-    }
-
-    struct TSObject *tso = createTSObject();
-    tso->len = RedisModule_LoadUnsigned(rdb);
-    size_t len = 0;
-    if (tso->len)
-        tso->entry = (TSEntry *)RedisModule_LoadStringBuffer(rdb, &len);
-
-    return tso;
-}
-
-void TSRdbSave(RedisModuleIO *rdb, void *value) {
-    struct TSObject *tso = value;
-    RedisModule_SaveUnsigned(rdb,tso->len);
-    if (tso->len)
-        RedisModule_SaveStringBuffer(rdb,(const char *)tso->entry,tso->len * sizeof(double));
-}
-
-void TSAofRewrite(RedisModuleIO *aof, RedisModuleString *key, void *value) {
-    struct TSObject *tso = value;
-    if(tso->entry) {
-        RedisModule_EmitAOF(aof,"TS.INSERT","sc",key,tso->entry);
-    }
-}
-
-void TSDigest(RedisModuleDigest *digest, void *value) {
-    /* TODO: The DIGEST module interface is yet not implemented. */
-}
-
-void TSFree(void *value) {
-    TSReleaseObject(value);
-}
-
-/* =========================== time series api =====================================*/
 int TSCreateDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     void cleanup () {}
     if (argc != 3) {
@@ -310,7 +246,6 @@ int TSInsert(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 }
 
 int ts_create(RedisModuleCtx *ctx, RedisModuleString *name, const char *interval, const char *timefmt, const char *timestamp) {
-
     RedisModuleKey *key = RedisModule_OpenKey(ctx, name, REDISMODULE_READ|REDISMODULE_WRITE);
 
     if (RedisModule_KeyType(key) != REDISMODULE_KEYTYPE_EMPTY)
@@ -324,9 +259,7 @@ int ts_create(RedisModuleCtx *ctx, RedisModuleString *name, const char *interval
     tso->timefmt = timefmt;
     tso->init_timestamp = interval_timestamp(interval, timestamp, tso->timefmt);
 
-    RedisModule_ReplyWithSimpleString(ctx, "OK");
-
-    return REDISMODULE_OK;
+    return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
 
 int TSCreate(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
@@ -502,8 +435,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx) {
     if (RedisModule_Init(ctx, "ts", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    /* Name must be 9 chars... */
-    TSType = RedisModule_CreateDataType(ctx,"timeserie",0,TSRdbLoad,TSRdbSave,TSAofRewrite,TSDigest,TSFree);
+    TSType = create_ts_entry_type(ctx);
     if (TSType == NULL) return REDISMODULE_ERR;
 
     // Register timeseries api
