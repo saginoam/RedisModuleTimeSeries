@@ -5,39 +5,55 @@
 # Overview
 
 RedisModuleTimeSeries implements time series data aggregation in redis.
-The api accepts json data and aggregate values into set of keys divided into date time histogram.
-Quering the values is done using the standard redis api.
+The module provides two variants APIs: single aggregation and json document. 
+The json document API is used in order to stream reports into redis, and let
+redis perform the ETL on the report, thus allowing the streaming pipeline to be 
+agnostic to the data itself.
+ 
+The motivation for this project arrived from what I consider a misuse of other
+frameworks, mainly elasticsearch, for doing time series aggregation on structured numerical data.
+
+Elasticseach is a json based search engine with analytics APIs and many other features.
+I consider the ELK to be state of the art framework, Its best in its domain, which is collecting, analyzing and visualize
+unstructured textual data, such as application logs, email analyzing, user tweets, etc.
+
+But, for collecting and analyzing structured data, which contains mostly predefined numerical
+parameters it is not the preferred solution, IMO, and thats what I'm trying to prove here.   
+
+For such use case I would use a software that allows me to store and analyze the data in the most efficient way,
+considering memory usage, speed and low cost (virtual) hardware requirements.
+ 
+Redis is excellent for this use case. Especially with the new module API, allowing much of the work to be done in redis.
+
+Benchmark results included.
+
 
 # API
 
-The time series contains 2 apis: configuration and data.
+## TS.CREATE
 
-## TS.conf
+Creates a time series key
 
-Create the configration for a specific time series aggregation
 
-### Parameters
+##ts.insert
 
-* name - the name of the time series
-* conf - json string containing time series configuration. conf parameters:
-  * keep_original: Boolean - Indicates to store the original data added in addition to aggregated data. (Not supported yet).
-  * interval: String - The time interval for the aggregation. Values: second, minute, hour, day, month, year.
-  * timeformat: String - Format of timestamp in data. If this field is missing, the timestamp from the data is ignored and 'now' is used. 
-  * key_fields: Array of strings containing the data fields that will be used to create the time series key.
-  * ts_fields: Array of objects. Object fields:
-    * field: String - name of parameter to aggregate.
-    * aggregation: String - Aggregation time. Values: sum, avg.
-  
+Insert time series data to be aggregated
 
-## TS.add
+##ts.get
 
-### Parameters
+Query the aggregated key for statistics (sum, avg, count)
 
-* name - the name of the time series
-* data - json string containing time series data. data parameters:
-  * All fields configured in TS.Conf command
-  * timestamp: String - timestamp of aggregated data. If missing, 'now' is used. If it exists, it must be in the format specified in timeformat parameter configured in ts.conf.
+##ts.info
 
+Get information on a time series key
+
+##ts.createdoc
+
+Create a json document configuration
+
+##ts.insertdoc
+
+Insert a json document to be converted to time series data.
 
 ## Building and running:
 
@@ -69,27 +85,37 @@ make
 /path/to/redis-server --loadmodule ./timeseries/timeseries.so
 ```
 
-#### Example
+#### Examples
 
-redis-cli is used in these example.
-redis-cli doesn't support single quate ('), so all json quates must be escaped. 
 
-* TS.CONF
-```
-127.0.0.1:6379> ts.conf testts "{\"keep_original\":false,\"interval\":\"day\",\"timeformat\":\"%Y:%m:%d %H:%M:%S\",\"key_fields\":[\"userId\",\"accountId\"],\"ts_fields\":[{\"field\":\"pagesVisited\",\"aggregation\":\"sum\"},{\"field\":\"storageUsed\",\"aggregation\":\"sum\"},{\"field\":\"trafficUsed\",\"aggregation\":\"avg\"}]}"
-```
-
-* TS.ADD
-```
-127.0.0.1:6379> ts.add testts "{\"userId\":\"userId1\",\"accountId\":\"accountId1\",\"pagesVisited\":2.500000,\"storageUsed\":111,\"trafficUsed\":20,\"timestamp\":\"2016:10:05 06:40:01\"}"
-```
 
 ## TODO
 
  * Expiration for aggregated data
- * interval duration. i.e '10 minute'
- * Implement 'keep original'
- * Interval should be per field, not global
- * Compare performance and footprint with elasticsearch (and others)
- * Additional tests
- * API to get the aggregated data. Its not really needed since all data can be retreived using redis apis.
+ * Interval duration. i.e '10 minutes'
+ * Additional analytics APIs 
+ * Store metadata for time series key
+ 
+# Benchmark
+
+The results are really amazing, and they show what is cost of using the wrong tool.
+For the same amount of reports, redis was more than 10x time faster and used 1% of the
+memory that elastic search used.
+
+Its not really a surprise since elastic stores all the data as json. Also, in elastic we
+store all the meta data in each report. You can argue its wrong usage, but I was just using
+in this benchmark the same procedures I argue that they are wrong. Also, if we would have removed
+the metadata from the reports, Redis would still use only 3% (instead of 1%) of the memory used by elastic.
+  
+Here is the output of the benchmark (performed using the benchmark.py file):
+```
+benchmark size:  1 number of calls:  2160
+redis    0:00:00 size: 458.0 b (458 bytes)
+elastic  0:00:07 size: 46.3 Kb (47394 bytes)
+----------------------------------------
+benchmark size:  10 number of calls:  21600
+redis    0:00:04 size:   4.6 Kb (4755 bytes)
+elastic  0:00:37 size: 594.8 Kb (609093 bytes)
+
+```
+

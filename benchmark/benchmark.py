@@ -3,12 +3,11 @@ from elasticsearch import Elasticsearch
 import redis
 
 tskey = "pytsbench"
-es_1_7 = Elasticsearch(["localhost:9200"])
-es_5_0 = Elasticsearch(["localhost:9222"])
+es = Elasticsearch(["localhost:9200"])
+elastic_5_0 = True
 client = redis.Redis()
 
 num_entries = 3
-
 
 def info():
     '''
@@ -28,7 +27,7 @@ def info():
     '''
 
 
-def delete_all(es):
+def delete_all():
     try:
         es.indices.delete(tskey)
     except:
@@ -63,9 +62,9 @@ def add_redis_entry(i, day, hour):
         client.execute_command('TS.INSERT', key + "_usage_time", str(i * 0.2 * e), timestamp)
 
 
-def add_es_entry(i, day, hour, use_5_0 = False):
+def add_es_entry(i, day, hour):
     timestamp = get_timestamp(day, hour, 0)
-    prefix = "params." if use_5_0 else ""
+    prefix = "params." if elastic_5_0 else ""
     user_id = "user_id_%d" % (i)
     dev_id = "device_id_%d" % (i)
     key = "%s_%s" % (user_id, dev_id)
@@ -74,6 +73,7 @@ def add_es_entry(i, day, hour, use_5_0 = False):
     script += "ctx._source.pages_visited += %spages_visited; "  % (prefix)
     script += "ctx._source.usage_time += %susage_time; "  % (prefix)
 
+    # Can't really perform the aggregation in elastic. its too slow.
     #for e in range(1, num_entries + 1):
     for e in range(1, 2):
         params = {
@@ -103,8 +103,7 @@ def add_es_entry(i, day, hour, use_5_0 = False):
             },
             "upsert": upsert
         }
-        body = script_5_0 if use_5_0 else script_1_7
-        es = es_5_0 if use_5_0 else es_1_7
+        body = script_5_0 if elastic_5_0 else script_1_7
         es.update(index=tskey, doc_type=tskey, id=key + "_" + timestamp, body=body)
 
 def add_es_entry_5_0(i, day, hour):
@@ -125,7 +124,7 @@ def get_redis_size(thekey = tskey):
         redis_size += client.execute_command('DEBUG OBJECT', key)['serializedlength']
     return "size: %s (%d)" % (sizeof_fmt(redis_size), redis_size)
 
-def get_es_size(es):
+def get_es_size():
     ind = 0
     try:
         ret = es.indices.stats(tskey)
@@ -133,12 +132,6 @@ def get_es_size(es):
     except:
         pass
     return "size: %s (%d)" % (sizeof_fmt(ind), ind)
-
-def get_es_size_1_7():
-    return get_es_size(es_1_7)
-
-def get_es_size_5_0():
-    return get_es_size(es_5_0)
 
 def run_for_all(size, cb, msg, size_cb):
     start = datetime.now().replace(microsecond=0)
@@ -152,14 +145,13 @@ def run_for_all(size, cb, msg, size_cb):
 
 def do_benchmark(size):
     print "delete data"
-    delete_all(es_1_7)
-    delete_all(es_5_0)
+    delete_all()
     print "----------------------------------------"
     print "benchmark size: ", size, "number of calls: ", num_entries * size * 24 * 30
-    run_for_all(size, add_redis_entry,  "redis", get_redis_size)
+    run_for_all(size, add_redis_entry,  "redis  ", get_redis_size)
     #run_for_all(size, add_redis_hset_entry,  "hset ", get_redis_hset_size)
     #run_for_all(size, add_redis_list_entry,  "list ", get_redis_list_size)
-    run_for_all(size, add_es_entry,     "es1_7", get_es_size_1_7)
+    run_for_all(size, add_es_entry, "elastic ", get_es_size)
     #run_for_all(size, add_es_entry_5_0, "es5_0", get_es_size_5_0)
     print "----------------------------------------"
 
