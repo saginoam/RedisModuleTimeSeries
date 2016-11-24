@@ -66,14 +66,11 @@ char *doc_key_prefix(cJSON *conf, cJSON *data)
 
 char *doc_agg_key(char *key_prefix, cJSON *ts_field){
 	static char agg_key[1000];
-	cJSON *field = cJSON_GetObjectItem(ts_field, "field");
-	cJSON *aggregation = cJSON_GetObjectItem(ts_field, "aggregation");
-	sprintf(agg_key, "%s%s:%s", key_prefix, field->valuestring, aggregation->valuestring);
+	sprintf(agg_key, "%s%s", key_prefix, ts_field->valuestring);
 	return agg_key;
 }
 
 double agg_value(cJSON *data, cJSON *ts_field) {
-	cJSON *field = cJSON_GetObjectItem(ts_field, "field");
-	return cJSON_GetObjectItem(data, field->valuestring)->valuedouble;
+	return cJSON_GetObjectItem(data, ts_field->valuestring)->valuedouble;
 }
 

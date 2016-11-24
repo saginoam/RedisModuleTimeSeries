@@ -28,8 +28,6 @@
 
 static char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, MONTH, YEAR};
 
-static char *validAggs[] = {SUM, AVG};
-
 static RedisModuleType *TSType;
 
 /**
@@ -72,12 +70,9 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
     cJSON *ts_fields = VALIDATE_ARRAY(conf, ts_fields);
     for (i=0; i < sz; i++) {
     	cJSON *ts_field = cJSON_GetArrayItem(ts_fields, i);
-    	if (ts_field->type != cJSON_Object)
-    		return "Invalid json: ts_field is not an object";
-    	cJSON *field = VALIDATE_STRING(ts_field, field);
-    	cJSON *aggregation = VALIDATE_ENUM(ts_field, aggregation, validAggs, "sum, avg");
+    	VALIDATE_STRING_TYPE(ts_field);
     	if (data) {
-    		cJSON *tsfield = cJSON_GetObjectItem(data, field->valuestring);
+    		cJSON *tsfield = cJSON_GetObjectItem(data, ts_field->valuestring);
     		if (!tsfield)
     			return "Invalid data: missing field";
     		if (tsfield->type != cJSON_Number)

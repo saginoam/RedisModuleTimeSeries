@@ -14,16 +14,13 @@ cJSON *testConfBase(cJSON *conf, char *avg, char *interval) {
         cJSON_Delete(conf);
 
     const char *key_fields[] = {"userId", "accountId"};
+    const char *ts_fields[] = {"pagesVisited", "storageUsed", "trafficUsed"};
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddFalseToObject(root, "keep_original");
     cJSON_AddStringToObject(root, "interval", interval);
     cJSON_AddStringToObject(root, "timeformat", fmt);
     cJSON_AddItemToObject(root, "key_fields", cJSON_CreateStringArray(key_fields, 2));
-    cJSON *ts_fields = cJSON_CreateArray();
-    cJSON_AddItemToArray(ts_fields, ts_object("pagesVisited", SUM));
-    cJSON_AddItemToArray(ts_fields, ts_object("storageUsed", SUM));
-    cJSON_AddItemToArray(ts_fields, ts_object("trafficUsed", avg));
-    cJSON_AddItemToObject(root, "ts_fields", ts_fields);
+    cJSON_AddItemToObject(root, "ts_fields", cJSON_CreateStringArray(ts_fields, 3));
+
     return root;
 }
 
@@ -31,12 +28,8 @@ cJSON *testConf(cJSON *conf) {
     return testConfBase(conf, AVG, DAY);
 }
 
-cJSON *testConfInvalidAvg(cJSON *conf) {
-    return testConfBase(conf, "xxx", DAY);
-}
-
 cJSON *testConfInvalidInterval(cJSON *conf) {
-    return testConfBase(conf, AVG, "xxx");
+    return testConfBase(conf, DAY, "xxx");
 }
 
 cJSON *dataJson(double s, double a) {
@@ -88,35 +81,23 @@ int testTSAggData(RedisModuleCtx *ctx) {
     RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.doc:userId1:accountId1:storageUsed:sum"));
     RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.doc:userId1:accountId1:trafficUsed:avg"));
     RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "DEL", "c", "ts.doc:userId1:accountId1:pagesVisited:sum"));
-
-    // Validate aggregation type
-    confJson = testConfInvalidAvg(confJson);
-    RMCALL(r, RedisModule_Call(ctx, "ts.createdoc", "cc", aggdatakey, cJSON_Print_static(confJson)));
-    RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
-    RMUtil_Assert(
-            !strcmp(RedisModule_CallReplyStringPtr(r, NULL), "Invalid json: aggregation is not one of: sum, avg\r\n"));
-
     // Validate interval values
     confJson = testConfInvalidInterval(confJson);
     RMCALL(r, RedisModule_Call(ctx, "ts.createdoc", "cc", aggdatakey, cJSON_Print_static(confJson)));
     RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
     RMUtil_Assert(!strcmp(RedisModule_CallReplyStringPtr(r, NULL),
             "Invalid json: interval is not one of: second, minute, hour, day, month, year\r\n"));
-
     // Validate add before conf fails
     RMCALL(r, RedisModule_Call(ctx, "ts.insertdoc", "cc", aggdatakey, cJSON_Print_static(data1)));
     RMUtil_Assert(RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ERROR);
-
     // Add conf
     confJson = testConf(confJson);
     RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.createdoc", "cc", aggdatakey, cJSON_Print_static(confJson)));
-
     // 1st Add succeed
     RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.insertdoc", "cc", aggdatakey, cJSON_Print_static(data1)));
     RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.insertdoc", "cc", aggdatakey, cJSON_Print_static(data2)));
     RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.insertdoc", "cc", aggdatakey, cJSON_Print_static(data1)));
     RMCALL_AssertNoErr(r, RedisModule_Call(ctx, "ts.insertdoc", "cc", aggdatakey, cJSON_Print_static(data1)));
-
     // Verify count is 1
     //    RMCALL(r, RedisModule_Call(ctx, "HGET", "cc", "ts.agg:userId1:accountId1:pagesVisited:sum", count_key));
     //    count = strtol(RedisModule_CallReplyStringPtr(r, NULL), &eptr, 10);
@@ -250,7 +231,7 @@ int TestModule(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
     RMUtil_Test(testTimestampIdx);
 
-    //RMUtil_Test(testTSAggData);
+    RMUtil_Test(testTSAggData);
 
     RedisModule_ReplyWithSimpleString(ctx, "PASS");
     return REDISMODULE_OK;
