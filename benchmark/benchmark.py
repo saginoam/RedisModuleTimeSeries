@@ -74,7 +74,8 @@ def add_es_entry(i, day, hour, use_5_0 = False):
     script += "ctx._source.pages_visited += %spages_visited; "  % (prefix)
     script += "ctx._source.usage_time += %susage_time; "  % (prefix)
 
-    for e in range(1, num_entries + 1):
+    #for e in range(1, num_entries + 1):
+    for e in range(1, 2):
         params = {
             "storage_used": i * 1.1 * e,
             "pages_visited": i * e,
@@ -158,13 +159,13 @@ def do_benchmark(size):
     run_for_all(size, add_redis_entry,  "redis", get_redis_size)
     #run_for_all(size, add_redis_hset_entry,  "hset ", get_redis_hset_size)
     #run_for_all(size, add_redis_list_entry,  "list ", get_redis_list_size)
-    # run_for_all(size, add_es_entry,     "es1_7", get_es_size_1_7)
+    run_for_all(size, add_es_entry,     "es1_7", get_es_size_1_7)
     #run_for_all(size, add_es_entry_5_0, "es5_0", get_es_size_5_0)
     print "----------------------------------------"
 
 
 do_benchmark(1)
-do_benchmark(2)
+do_benchmark(10)
 #do_benchmark(100)
 #do_benchmark(1000)
 
