@@ -7,6 +7,8 @@ es = Elasticsearch(["localhost:9200"])
 elastic_5_0 = True
 client = redis.Redis()
 
+rsize = int(client.info("memory")['used_memory'])
+
 num_entries = 3
 
 def info():
@@ -34,6 +36,8 @@ def delete_all():
         pass
     for key in client.execute_command('KEYS', tskey + "*"):
         client.execute_command('DEL', key)
+    global rsize
+    rsize = int(client.info("memory")['used_memory'])
 
 def get_timestamp(day, hour, minute):
     return "2016:01:%.2d %.2d:%.2d:00" % (day, hour, minute)
@@ -118,6 +122,10 @@ def sizeof_fmt(num, suffix='b'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
+def get_redis_memory_size():
+    sz = int(client.info("memory")['used_memory']) - rsize
+    return "size: %s (%d)" % (sizeof_fmt(sz), sz)
+
 def get_redis_size(thekey = tskey):
     redis_size = 0
     for key in client.execute_command('KEYS', thekey + "*"):
@@ -148,7 +156,7 @@ def do_benchmark(size):
     delete_all()
     print "----------------------------------------"
     print "benchmark size: ", size, "number of calls: ", num_entries * size * 24 * 30
-    run_for_all(size, add_redis_entry,  "redis  ", get_redis_size)
+    run_for_all(size, add_redis_entry,  "redis  ", get_redis_memory_size)
     #run_for_all(size, add_redis_hset_entry,  "hset ", get_redis_hset_size)
     #run_for_all(size, add_redis_list_entry,  "list ", get_redis_list_size)
     run_for_all(size, add_es_entry, "elastic ", get_es_size)
