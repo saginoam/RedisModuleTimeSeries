@@ -2,29 +2,18 @@
 #include "ts_entry.h"
 #include "ts_utils.h"
 
-// TODO API:
-//   Get Range
 // TODO README:
 //   Examples
-//   Script for generating many entries
-//   Elasticsearch compare
-//   Missing features
 // TODO Features:
+//   Configurable timestamp
 //   Expiration
+//   Document meta data. Data that is stored on each update. To be used for the 'exactly once' implementation, when streaming data frm kafka.
 //   interval duration. i.e '10 minute'
-//   keep original
-//   interval should be per field, not global
 //   pagination
 // TODO Redis questions:
 //   Persistency and load from disk
-// TODO Testing:
-//   All 3 new APIs
-//   Verify all keys exist
-//   Verify all fields exist
-//   Verify keep original
 // TODO Usability
 //   Command line help for api
-//   Last inserted timestamp/offset, so client can know from where to begin
 
 static char *validIntervals[] = {SECOND, MINUTE, HOUR, DAY, MONTH, YEAR};
 
@@ -46,7 +35,7 @@ char *ValidateTS(cJSON *conf, cJSON *data) {
     // verify interval parameter
     cJSON *interval = VALIDATE_ENUM(conf, interval, validIntervals, "second, minute, hour, day, month, year");
     long timestamp = interval_timestamp(interval->valuestring, cJSON_GetObjectString(data, "timestamp"),
-        cJSON_GetObjectString(conf, "timeformat"));
+        DEFAULT_TIMEFMT);
     if (!timestamp)
         return "Invalid json: timestamp format and data mismatch";
 
@@ -235,7 +224,7 @@ int TSInsertDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     // Create timestamp. Use a single timestamp for all entries, not to accidently use different entries in case
     // during the calculation the time has changed)
     long timestamp = interval_timestamp(cJSON_GetObjectItem(conf, "interval")->valuestring,
-        cJSON_GetObjectString(data, "timestamp"), cJSON_GetObjectString(conf, "timeformat"));
+        cJSON_GetObjectString(data, "timestamp"), DEFAULT_TIMEFMT);
 
     char *key_prefix = doc_key_prefix(conf, data);
 
@@ -270,7 +259,7 @@ int TSGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     if (argc < 3 || argc > 5)
         return RedisModule_WrongArity(ctx);
 
-    RedisModuleKey *key = RedisModule_OpenKey(ctx,argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
+    RedisModuleKey *key = RedisModule_OpenKey(ctx, argv[1], REDISMODULE_READ|REDISMODULE_WRITE);
 
     if (RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_EMPTY)
         return RedisModule_ReplyWithError(ctx,"Key doesn't exist");
