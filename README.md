@@ -129,9 +129,66 @@ make
 /path/to/redis-server --loadmodule ./timeseries/timeseries.so
 ```
 
-#### Examples
+## Examples
 
-TBD
+The examples of the basic API are done using redis-cli.
+The examples of the json documents aggregation are done using python code.
+
+### TS.CREATE
+
+Create time series key with hour interval
+
+```
+127.0.0.1:6379> TS.CREATE testaggregation hour
+OK
+```
+
+###TS.INSERT
+
+Insert some values to time series key
+
+```
+127.0.0.1:6379> TS.INSERT testaggregation 10.5
+OK
+```
+
+```
+127.0.0.1:6379> TS.INSERT testaggregation 11.5
+OK
+```
+
+###TS.GET
+
+Get aggregation values for that key.
+
+```
+127.0.0.1:6379> TS.GET testaggregation sum
+1) "22"
+```
+
+```
+127.0.0.1:6379> TS.GET testaggregation avg
+1) "11"
+```
+
+```
+127.0.0.1:6379> TS.GET testaggregation count
+1) (integer) 2
+```
+
+###TS.INFO
+
+Get information on that timeseries
+
+```
+127.0.0.1:6379> TS.INFO testaggregation
+"Start: 2016:11:26 19:00:00 End: 2016:11:26 19:00:00 len: 1 Interval: hour"
+```
+
+###TS.CREATEDOC
+
+###TS.INSERTDOC
+
 
 ## TODO
 
