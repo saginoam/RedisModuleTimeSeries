@@ -187,7 +187,42 @@ Get information on that timeseries
 
 ###TS.CREATEDOC
 
+Create json doc configuration, to enable ingestion of reports into redis.
+
+```
+import redis
+import json
+
+client = redis.Redis()
+
+client.execute_command('TS.CREATEDOC', "tsdoctest", json.dumps({
+        "interval": "hour",
+        "timestamp": "2016:01:01 00:00:00",
+        "key_fields": ["userId", "deviceId"],
+        "ts_fields": ["pagesVisited", "storageUsed", "trafficUsed"]
+    }))
+```
+
 ###TS.INSERTDOC
+
+Insert report to redis time series module. Based on the configuration in TS.CREATEDOC
+
+```
+import redis
+import json
+
+client = redis.Redis()
+
+client.execute_command('TS.INSERTDOC', "tsdoctest", json.dumps({
+        "userId": "uid1",
+        "deviceId": "devid1",
+        "pagesVisited": 1,
+        "storageUsed": 2,
+        "trafficUsed": 3,
+        "timesamp": "2016:01:01 00:01:00"
+    }))
+
+```
 
 
 ## TODO
