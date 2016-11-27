@@ -1,24 +1,51 @@
 import redis
+import json
 
-tskey = "pyts"
-client = redis.Redis()
+def client():
+    return redis.Redis()
 
-ret = client.execute_command('DEL', tskey)
-print ret
+print int(client().info("memory")['used_memory'])
 
-ret = client.execute_command('TS.CREATE', tskey, "day", "2016:01:01 00:00:00")
-print ret
+tskey = "tsdoctest"
 
-ret = client.execute_command('TS.INSERT', tskey, "10.5", "2016:01:02 00:00:00")
-print ret
+def get_timestamp(day=0, hour=0, minute=0):
+    return "2016:01:%.2d %.2d:%.2d:00" % (day, hour, minute)
 
-ret = client.execute_command('TS.INSERT', tskey, "11.5", "2016:01:02 00:01:00")
-print ret
+def doc_cofig():
+    return json.dumps({
+        "interval": "hour",
+        "timestamp": get_timestamp(),
+        "key_fields": ["userId", "deviceId"],
+        "ts_fields": ["pagesVisited", "storageUsed", "trafficUsed"]
+    })
 
-ret = client.execute_command('TS.GET', tskey, "sum", "2016:01:02 00:01:00")
-print ret[0]
-assert (ret[0] == '22')
+def doc():
+    return json.dumps({
+        "userId": "uid1",
+        "deviceId": "devid1",
+        "pagesVisited": 1,
+        "storageUsed": 2,
+        "trafficUsed": 3,
+        "timesamp": get_timestamp()
+    })
 
-ret = client.execute_command('TS.GET', tskey, "avg", "2016:01:02 00:01:00")
-print ret[0]
-assert (ret[0] == '11')
+
+print client().execute_command('DEL', tskey)
+
+# print json.dumpsdoc_cofig()
+print client().execute_command('TS.CREATEDOC', tskey, doc_cofig())
+
+print client().execute_command('TS.INSERTDOC', tskey, doc())
+print client().execute_command('TS.INSERTDOC', tskey, doc())
+print client().execute_command('TS.INSERTDOC', tskey, doc())
+#print client.execute_command('TS.INSERTDOC', tskey, doc())
+
+print client().execute_command('KEYS', tskey + "*")
+print client().keys(tskey + "*")
+print int(client().info("memory")['used_memory'])
+# print ret[0]
+# assert (ret[0] == '22')
+#
+# ret = client.execute_command('TS.GET', tskey, "avg", "2016:01:02 00:01:00")
+# print ret[0]
+# assert (ret[0] == '11')
