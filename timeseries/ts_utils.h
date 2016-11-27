@@ -14,7 +14,7 @@ const char *interval2str(Interval interval);
 
 size_t idx_timestamp(time_t init_timestamp, size_t cur_timestamp, Interval interval);
 
-char *doc_key_prefix(cJSON *conf, cJSON *data);
+char *doc_key_prefix(const char *name, cJSON *conf, cJSON *data);
 
 char *doc_agg_key(char *key_prefix, cJSON *ts_field);
 

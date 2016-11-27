@@ -90,7 +90,7 @@ int TSCreateDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
         return RedisModule_ReplyWithError(ctx, jsonErr);
     }
 
-    RedisModuleCallReply *srep = RedisModule_Call(ctx, "HSET", "ccc", "ts.doc", name, conf);
+    RedisModuleCallReply *srep = RedisModule_Call(ctx, "HSET", "ccc", name, name, conf);
     // Free the json before assert, otherwise invalid input will cause memory leak of the json
     cJSON_Delete(json);
     RMUTIL_ASSERT_NOERROR(srep, cleanup);
@@ -206,9 +206,11 @@ int TSInsertDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     }
     RedisModule_AutoMemory(ctx);
 
+    const char *name = RedisModule_StringPtrLen(argv[1], NULL);
+
     // Time series entry name
-    confRep = RedisModule_Call(ctx, "HGET", "cs", "ts.doc", argv[1]);
-    RMUTIL_ASSERT_NONULL(confRep, RedisModule_StringPtrLen(argv[1], NULL), cleanup);
+    confRep = RedisModule_Call(ctx, "HGET", "cc", name, name);
+    RMUTIL_ASSERT_NONULL(confRep, name, cleanup);
 
     // Time series entry conf previously stored for 'name'
     if (!(conf=cJSON_Parse(RedisModule_CallReplyStringPtr(confRep, NULL))))
@@ -226,7 +228,7 @@ int TSInsertDoc(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     long timestamp = interval_timestamp(cJSON_GetObjectItem(conf, "interval")->valuestring,
         cJSON_GetObjectString(data, "timestamp"), DEFAULT_TIMEFMT);
 
-    char *key_prefix = doc_key_prefix(conf, data);
+    char *key_prefix = doc_key_prefix(name, conf, data);
 
     cJSON *ts_fields = cJSON_GetObjectItem(conf, "ts_fields");
     for (int i=0; i < cJSON_GetArraySize(ts_fields); i++) {
