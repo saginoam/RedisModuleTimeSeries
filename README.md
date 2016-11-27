@@ -238,4 +238,12 @@ client.execute_command('TS.INSERTDOC', "tsdoctest", json.dumps({
  
 # Benchmark
 
-TBD
+I performed the benchmark with many configuration. Used elastic 1.7 and 5.0,
+performed single api call and bulk api calls, used both groovy and painless for elasticsearch upsert.
+   
+Insert performance: redis 10x times faster than elasticsearch.
+
+Upsert performance: redis 10-100x times faster than elasticsearch.
+
+Memory usage: When elasticsearch was configured with '_source: disable', the memory usage was similar.
+When '_source: enable', the elasticsearch memory usage increased drastically (3-10 times higher).
