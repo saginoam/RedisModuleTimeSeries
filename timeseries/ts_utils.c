@@ -54,7 +54,7 @@ size_t idx_timestamp(time_t init_timestamp, size_t cur_timestamp, Interval inter
 char *doc_key_prefix(const char *name, cJSON *conf, cJSON *data)
 {
 	static char key_prefix[1000] = "";
-	strcat(key_prefix, name);
+	strcpy(key_prefix, name);
     strcat(key_prefix, ":");
 	cJSON *key_fields = cJSON_GetObjectItem(conf, "key_fields");
 	for (int i=0; i < cJSON_GetArraySize(key_fields); i++) {
