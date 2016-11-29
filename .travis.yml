@@ -1,0 +1,10 @@
+language: c
+compiler: gcc
+install: make
+before_script:
+  - git clone https://github.com/antirez/redis.git
+  - cd redis
+  - make
+  - cd ..
+  - ./redis/src/redis-server --loadmodule ./timeseries/timeseries.so &
+script: echo "TS.TEST" | ./redis/src/redis-cli
