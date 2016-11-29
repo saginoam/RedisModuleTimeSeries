@@ -224,6 +224,112 @@ client.execute_command('TS.INSERTDOC', "tsdoctest", json.dumps({
 
 ```
 
+## Data Stream example
+
+The power if this module can be demonstrated by simulating a data stream.
+Data stream can be, for example, a report collecting system that stores incoming reports into kafka and loads them into redis using logstash.
+In that case the data time series aggregation can be acheived with nothing more than logstash configuration without any code.
+
+#### Create time series document
+Run the following python code to configure the time series aggregation
+```
+import redis
+import json
+
+client = redis.Redis()
+
+client.execute_command('TS.CREATEDOC', "tsdoctest", json.dumps({
+        "interval": "hour",
+        "timestamp": "2016:01:01 00:00:00",
+        "key_fields": ["userId", "deviceId"],
+        "ts_fields": ["pagesVisited", "storageUsed", "trafficUsed"]
+    }))
+
+```
+
+#### Stream documents into redis
+
+Run the bellow code to stream documents into redis.
+Streaming documents into redis can be done for example using kafka and logstash.
+For the simplicity of the demo I use python code
+
+```
+import random
+import redis
+import json
+
+client = redis.Redis()
+
+def doc(userId, deviceId, hour, minute):
+    return json.dumps({
+        "userId": userId,
+        "deviceId": deviceId,
+        "pagesVisited": random.randint(1, 10),
+        "storageUsed": random.randint(1, 10),
+        "trafficUsed": random.randint(1, 10),
+        "timestamp": "2016:01:01 %.2d:%.2d:00" % (hour, minute)
+    })
+
+# Simulate a data stream such as logstash with input kafka output redis
+for hour in range(0, 24):
+    for minute in range(0, 60, 5):
+        client.execute_command('TS.INSERTDOC', "tsdoctest", doc("user1", "deviceA", hour, minute))
+        client.execute_command('TS.INSERTDOC', "tsdoctest", doc("user1", "deviceA", hour, minute))
+        client.execute_command('TS.INSERTDOC', "tsdoctest", doc("user1", "deviceB", hour, minute))
+        client.execute_command('TS.INSERTDOC', "tsdoctest", doc("user2", "deviceB", hour, minute))
+        client.execute_command('TS.INSERTDOC', "tsdoctest", doc("user2", "deviceC", hour, minute))
+
+```
+
+#### Query redis for time series aggregation
+
+See what keys are created
+```
+127.0.0.1:6379> keys *
+ 1) "tsdoctest:user2:deviceC:storageUsed"
+ 2) "tsdoctest:user1:deviceA:trafficUsed"
+ 3) "tsdoctest:user1:deviceA:storageUsed"
+ 4) "tsdoctest:user2:deviceB:pagesVisited"
+ 5) "tsdoctest:user2:deviceB:storageUsed"
+ 6) "tsdoctest:user1:deviceA:pagesVisited"
+ 7) "tsdoctest"
+ 8) "tsdoctest:user2:deviceC:pagesVisited"
+ 9) "tsdoctest:user1:deviceB:pagesVisited"
+10) "tsdoctest:user2:deviceC:trafficUsed"
+11) "tsdoctest:user1:deviceB:storageUsed"
+12) "tsdoctest:user1:deviceB:trafficUsed"
+13) "tsdoctest:user2:deviceB:trafficUsed"
+```
+
+Get information on specific key
+```
+127.0.0.1:6379> TS.INFO tsdoctest:user2:deviceC:trafficUsed
+"Start: 2016:01:01 00:00:00 End: 2016:01:01 23:00:00 len: 24 Interval: hour"
+```
+
+Query a specific key for avg in a single timestamp 
+```
+127.0.0.1:6379> TS.GET tsdoctest:user2:deviceC:trafficUsed avg "2016:01:01 00:00:00"
+1) "6.5"
+```
+
+Query a specific key for avg in a time range
+```
+127.0.0.1:6379> TS.GET tsdoctest:user2:deviceC:trafficUsed avg "2016:01:01 00:00:00" "2016:01:01 03:00:00"
+1) "6.5"
+2) "4.75"
+3) "5.666666666666667"
+4) "5.75"
+```
+
+Query a specific key for documents count in a time range
+```
+127.0.0.1:6379> TS.GET tsdoctest:user2:deviceC:trafficUsed count "2016:01:01 00:00:00" "2016:01:01 03:00:00"
+1) (integer) 12
+2) (integer) 12
+3) (integer) 12
+4) (integer) 12
+```
 
 ## TODO
 
